@@ -15,8 +15,11 @@ import {
   Undo2,
   Redo2,
   Eye,
+  EyeOff,
   Lock,
+  Unlock,
   Volume2,
+  VolumeX,
   ZoomIn,
   ZoomOut,
   RotateCw,
@@ -26,14 +29,18 @@ import {
   MonitorPlay,
   Check,
   Plus,
+  Link2,
+  GripHorizontal,
+  Layers3,
 } from "lucide-react";
+
+type VideoTrack = "V1" | "V2";
 
 type MediaItem = {
   id: string;
   name: string;
   url: string;
   file: File;
-  type: "video";
   duration: number;
   thumbnails: string[];
   waveform: number[];
@@ -41,12 +48,19 @@ type MediaItem = {
 
 type TimelineClip = {
   id: string;
+
   mediaId: string;
+
   name: string;
+
   sourceUrl: string;
 
+  track: VideoTrack;
+
   timelineStart: number;
+
   sourceStart: number;
+
   duration: number;
 };
 
@@ -58,52 +72,96 @@ type DragState = {
 
 type TrimState = {
   clipId: string;
+
   side: "left" | "right";
+
   startMouseX: number;
+
   initialTimelineStart: number;
+
   initialSourceStart: number;
+
   initialDuration: number;
 };
 
-type PendingPreview = {
-  clipId: string;
-  timelineTime: number;
-  autoplay: boolean;
+type TrackResizeState = {
+  track: "V1" | "V2" | "A1";
+
+  startMouseY: number;
+
+  initialHeight: number;
 };
 
 const MIN_CLIP_DURATION = 0.1;
+
 const BASE_PIXELS_PER_SECOND = 20;
+
 const MAX_HISTORY = 50;
 
+/* -------------------------------------------------------
+   HELPERS
+------------------------------------------------------- */
+
 function cloneClips(clips: TimelineClip[]) {
-  return clips.map((clip) => ({ ...clip }));
+  return clips.map((clip) => ({
+    ...clip,
+  }));
 }
 
 function formatTime(seconds: number) {
-  if (!Number.isFinite(seconds)) return "00:00:00";
+  if (!Number.isFinite(seconds)) {
+    return "00:00:00";
+  }
 
-  const totalSeconds = Math.floor(seconds);
+  const totalSeconds =
+    Math.floor(seconds);
 
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const secs = totalSeconds % 60;
+  const hours =
+    Math.floor(
+      totalSeconds / 3600
+    );
 
-  return `${hours.toString().padStart(2, "0")}:${minutes
+  const minutes =
+    Math.floor(
+      (totalSeconds % 3600) / 60
+    );
+
+  const secs =
+    totalSeconds % 60;
+
+  return `${hours
     .toString()
-    .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    .padStart(2, "0")}:${minutes
+    .toString()
+    .padStart(2, "0")}:${secs
+    .toString()
+    .padStart(2, "0")}`;
 }
 
-function getClipAtTimelineTime(
+function getClipAtTime(
   clips: TimelineClip[],
-  timelineTime: number
+  timelineTime: number,
+  track?: VideoTrack
 ) {
   return [...clips]
-    .sort((a, b) => a.timelineStart - b.timelineStart)
+    .filter(
+      (clip) =>
+        !track ||
+        clip.track === track
+    )
+    .sort(
+      (a, b) =>
+        a.timelineStart -
+        b.timelineStart
+    )
     .find((clip) => {
-      const end = clip.timelineStart + clip.duration;
+      const end =
+        clip.timelineStart +
+        clip.duration;
 
       return (
-        timelineTime >= clip.timelineStart &&
+        timelineTime >=
+          clip.timelineStart &&
         timelineTime < end
       );
     });
@@ -111,86 +169,132 @@ function getClipAtTimelineTime(
 
 function waitForVideoEvent(
   video: HTMLVideoElement,
+
   eventName: keyof HTMLMediaElementEventMap
 ) {
-  return new Promise<void>((resolve, reject) => {
-    const onSuccess = () => {
-      cleanup();
-      resolve();
-    };
+  return new Promise<void>(
+    (resolve, reject) => {
+      const success = () => {
+        cleanup();
 
-    const onError = () => {
-      cleanup();
-      reject(new Error(`Video event failed: ${eventName}`));
-    };
+        resolve();
+      };
 
-    const cleanup = () => {
-      video.removeEventListener(eventName, onSuccess);
-      video.removeEventListener("error", onError);
-    };
+      const error = () => {
+        cleanup();
 
-    video.addEventListener(eventName, onSuccess, {
-      once: true,
-    });
+        reject(
+          new Error(
+            `Video event failed: ${eventName}`
+          )
+        );
+      };
 
-    video.addEventListener("error", onError, {
-      once: true,
-    });
-  });
+      const cleanup = () => {
+        video.removeEventListener(
+          eventName,
+          success
+        );
+
+        video.removeEventListener(
+          "error",
+          error
+        );
+      };
+
+      video.addEventListener(
+        eventName,
+        success,
+        {
+          once: true,
+        }
+      );
+
+      video.addEventListener(
+        "error",
+        error,
+        {
+          once: true,
+        }
+      );
+    }
+  );
 }
 
-/* -----------------------------------------------------
-   VIDEO THUMBNAILS
------------------------------------------------------ */
+/* -------------------------------------------------------
+   THUMBNAILS
+------------------------------------------------------- */
 
 async function generateVideoThumbnails(
   url: string,
-  count = 10
+
+  count = 12
 ) {
-  const video = document.createElement("video");
+  const video =
+    document.createElement("video");
 
   video.src = url;
+
   video.muted = true;
+
   video.preload = "auto";
 
-  await waitForVideoEvent(video, "loadedmetadata");
+  await waitForVideoEvent(
+    video,
+    "loadedmetadata"
+  );
 
-  const duration = video.duration;
+  const duration =
+    video.duration;
 
-  if (!Number.isFinite(duration) || duration <= 0) {
+  if (
+    !Number.isFinite(duration) ||
+    duration <= 0
+  ) {
     return [];
   }
 
-  const canvas = document.createElement("canvas");
+  const canvas =
+    document.createElement(
+      "canvas"
+    );
 
   canvas.width = 160;
+
   canvas.height = 90;
 
-  const ctx = canvas.getContext("2d");
+  const ctx =
+    canvas.getContext("2d");
 
   if (!ctx) return [];
 
-  const thumbnails: string[] = [];
+  const thumbnails: string[] =
+    [];
 
-  for (let i = 0; i < count; i++) {
+  for (
+    let i = 0;
+    i < count;
+    i++
+  ) {
     const progress =
-      count === 1 ? 0 : i / (count - 1);
+      count === 1
+        ? 0
+        : i / (count - 1);
 
-    const seekTime = Math.min(
-      duration * progress,
-      Math.max(0, duration - 0.05)
-    );
+    video.currentTime =
+      Math.min(
+        duration * progress,
 
-    video.currentTime = seekTime;
+        Math.max(
+          0,
+          duration - 0.05
+        )
+      );
 
     try {
-      await waitForVideoEvent(video, "seeked");
-
-      ctx.clearRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
+      await waitForVideoEvent(
+        video,
+        "seeked"
       );
 
       ctx.drawImage(
@@ -202,29 +306,33 @@ async function generateVideoThumbnails(
       );
 
       thumbnails.push(
-        canvas.toDataURL("image/jpeg", 0.6)
+        canvas.toDataURL(
+          "image/jpeg",
+          0.6
+        )
       );
-    } catch {
-      // skip failed frame
-    }
+    } catch {}
   }
 
   video.removeAttribute("src");
+
   video.load();
 
   return thumbnails;
 }
 
-/* -----------------------------------------------------
+/* -------------------------------------------------------
    WAVEFORM
------------------------------------------------------ */
+------------------------------------------------------- */
 
 async function generateWaveform(
   file: File,
-  sampleCount = 120
+
+  sampleCount = 160
 ) {
   try {
-    const arrayBuffer = await file.arrayBuffer();
+    const arrayBuffer =
+      await file.arrayBuffer();
 
     const audioContext =
       new AudioContext();
@@ -237,14 +345,18 @@ async function generateWaveform(
     const data =
       audioBuffer.getChannelData(0);
 
-    const blockSize = Math.max(
-      1,
-      Math.floor(
-        data.length / sampleCount
-      )
-    );
+    const blockSize =
+      Math.max(
+        1,
 
-    const waveform: number[] = [];
+        Math.floor(
+          data.length /
+            sampleCount
+        )
+      );
+
+    const waveform: number[] =
+      [];
 
     for (
       let i = 0;
@@ -254,10 +366,11 @@ async function generateWaveform(
       const start =
         i * blockSize;
 
-      const end = Math.min(
-        start + blockSize,
-        data.length
-      );
+      const end =
+        Math.min(
+          start + blockSize,
+          data.length
+        );
 
       let peak = 0;
 
@@ -266,10 +379,11 @@ async function generateWaveform(
         j < end;
         j++
       ) {
-        peak = Math.max(
-          peak,
-          Math.abs(data[j])
-        );
+        peak =
+          Math.max(
+            peak,
+            Math.abs(data[j])
+          );
       }
 
       waveform.push(peak);
@@ -278,23 +392,23 @@ async function generateWaveform(
     await audioContext.close();
 
     const max =
-      Math.max(...waveform, 0.001);
+      Math.max(
+        ...waveform,
+        0.001
+      );
 
     return waveform.map(
-      (value) => value / max
+      (value) =>
+        value / max
     );
   } catch {
-    /*
-      Some codecs/containers may not decode
-      directly with Web Audio.
-    */
     return [];
   }
 }
 
-/* -----------------------------------------------------
-   MEDIA INFO
------------------------------------------------------ */
+/* -------------------------------------------------------
+   PROCESS MEDIA
+------------------------------------------------------- */
 
 async function processMediaFile(
   file: File
@@ -303,10 +417,15 @@ async function processMediaFile(
     URL.createObjectURL(file);
 
   const video =
-    document.createElement("video");
+    document.createElement(
+      "video"
+    );
 
   video.src = url;
-  video.preload = "metadata";
+
+  video.preload =
+    "metadata";
+
   video.muted = true;
 
   await waitForVideoEvent(
@@ -317,30 +436,38 @@ async function processMediaFile(
   const duration =
     video.duration;
 
-  const [thumbnails, waveform] =
-    await Promise.all([
-      generateVideoThumbnails(
-        url,
-        10
-      ),
+  const [
+    thumbnails,
+    waveform,
+  ] = await Promise.all([
+    generateVideoThumbnails(
+      url,
+      12
+    ),
 
-      generateWaveform(
-        file,
-        120
-      ),
-    ]);
+    generateWaveform(
+      file,
+      160
+    ),
+  ]);
 
   video.removeAttribute("src");
+
   video.load();
 
   return {
     id: crypto.randomUUID(),
+
     name: file.name,
+
     url,
+
     file,
-    type: "video",
+
     duration,
+
     thumbnails,
+
     waveform,
   };
 }
@@ -351,7 +478,17 @@ export default function Home() {
       null
     );
 
-  const videoRef =
+  /*
+    V1 = main playback/master audio
+    V2 = muted overlay
+  */
+
+  const v1VideoRef =
+    useRef<HTMLVideoElement | null>(
+      null
+    );
+
+  const v2VideoRef =
     useRef<HTMLVideoElement | null>(
       null
     );
@@ -359,49 +496,71 @@ export default function Home() {
   const timelineClipsRef =
     useRef<TimelineClip[]>([]);
 
-  const activePlaybackClipIdRef =
-    useRef<string | null>(null);
-
-  const pendingPreviewRef =
-    useRef<PendingPreview | null>(
+  const dragStateRef =
+    useRef<DragState | null>(
       null
     );
 
-  const dragStateRef =
-    useRef<DragState | null>(null);
-
   const trimStateRef =
-    useRef<TrimState | null>(null);
+    useRef<TrimState | null>(
+      null
+    );
+
+  const resizeStateRef =
+    useRef<TrackResizeState | null>(
+      null
+    );
 
   const operationSnapshotRef =
     useRef<TimelineClip[] | null>(
       null
     );
 
-  const [mediaItems, setMediaItems] =
-    useState<MediaItem[]>([]);
-
-  const [selectedMedia, setSelectedMedia] =
-    useState<MediaItem | null>(
+  const activeV1ClipRef =
+    useRef<string | null>(
       null
     );
 
-  const [timelineClips, setTimelineClips] =
-    useState<TimelineClip[]>([]);
-
-  const [selectedClipId, setSelectedClipId] =
-    useState<string | null>(
+  const activeV2ClipRef =
+    useRef<string | null>(
       null
     );
 
-  const [currentTime, setCurrentTime] =
-    useState(0);
+  const [
+    mediaItems,
+    setMediaItems,
+  ] = useState<MediaItem[]>(
+    []
+  );
 
-  const [isPlaying, setIsPlaying] =
-    useState(false);
+  const [
+    timelineClips,
+    setTimelineClips,
+  ] = useState<
+    TimelineClip[]
+  >([]);
 
-  const [isImporting, setIsImporting] =
-    useState(false);
+  const [
+    selectedClipId,
+    setSelectedClipId,
+  ] = useState<string | null>(
+    null
+  );
+
+  const [
+    currentTime,
+    setCurrentTime,
+  ] = useState(0);
+
+  const [
+    isPlaying,
+    setIsPlaying,
+  ] = useState(false);
+
+  const [
+    isImporting,
+    setIsImporting,
+  ] = useState(false);
 
   const [
     draggingClipId,
@@ -417,18 +576,73 @@ export default function Home() {
     null
   );
 
-  const [zoom, setZoom] =
-    useState(100);
+  const [
+    activeV1Media,
+    setActiveV1Media,
+  ] = useState<MediaItem | null>(
+    null
+  );
 
-  const [past, setPast] =
-    useState<TimelineClip[][]>(
-      []
-    );
+  const [
+    activeV2Media,
+    setActiveV2Media,
+  ] = useState<MediaItem | null>(
+    null
+  );
 
-  const [future, setFuture] =
-    useState<TimelineClip[][]>(
-      []
-    );
+  const [
+    zoom,
+    setZoom,
+  ] = useState(100);
+
+  const [
+    past,
+    setPast,
+  ] = useState<
+    TimelineClip[][]
+  >([]);
+
+  const [
+    future,
+    setFuture,
+  ] = useState<
+    TimelineClip[][]
+  >([]);
+
+  const [
+    v1Height,
+    setV1Height,
+  ] = useState(84);
+
+  const [
+    v2Height,
+    setV2Height,
+  ] = useState(70);
+
+  const [
+    audioHeight,
+    setAudioHeight,
+  ] = useState(70);
+
+  const [
+    v1Visible,
+    setV1Visible,
+  ] = useState(true);
+
+  const [
+    v2Visible,
+    setV2Visible,
+  ] = useState(true);
+
+  const [
+    audioMuted,
+    setAudioMuted,
+  ] = useState(false);
+
+  const [
+    tracksLocked,
+    setTracksLocked,
+  ] = useState(false);
 
   useEffect(() => {
     timelineClipsRef.current =
@@ -439,21 +653,21 @@ export default function Home() {
     BASE_PIXELS_PER_SECOND *
     (zoom / 100);
 
-  /* -----------------------------------------------------
-     MEDIA LOOKUP
-  ----------------------------------------------------- */
+  /* -------------------------------------------------------
+     LOOKUP
+  ------------------------------------------------------- */
 
   const getMediaById = (
-    mediaId: string
+    id: string
   ) =>
     mediaItems.find(
-      (media) =>
-        media.id === mediaId
+      (item) =>
+        item.id === id
     );
 
-  /* -----------------------------------------------------
+  /* -------------------------------------------------------
      HISTORY
-  ----------------------------------------------------- */
+  ------------------------------------------------------- */
 
   const pushHistory = (
     snapshot?: TimelineClip[]
@@ -468,6 +682,7 @@ export default function Home() {
       ...prev.slice(
         -(MAX_HISTORY - 1)
       ),
+
       cloneClips(state),
     ]);
 
@@ -475,24 +690,22 @@ export default function Home() {
   };
 
   const undo = () => {
-    if (!past.length) return;
+    if (!past.length)
+      return;
 
     const previous =
       past[past.length - 1];
 
-    const current =
+    setFuture((prev) => [
       cloneClips(
         timelineClipsRef.current
-      );
+      ),
+      ...prev,
+    ]);
 
     setPast((prev) =>
       prev.slice(0, -1)
     );
-
-    setFuture((prev) => [
-      current,
-      ...prev,
-    ]);
 
     setTimelineClips(
       cloneClips(previous)
@@ -500,31 +713,27 @@ export default function Home() {
 
     setSelectedClipId(null);
 
-    videoRef.current?.pause();
-    setIsPlaying(false);
+    pauseAll();
   };
 
   const redo = () => {
-    if (!future.length) return;
+    if (!future.length)
+      return;
 
     const next =
       future[0];
 
-    const current =
+    setPast((prev) => [
+      ...prev,
+
       cloneClips(
         timelineClipsRef.current
-      );
+      ),
+    ]);
 
     setFuture((prev) =>
       prev.slice(1)
     );
-
-    setPast((prev) => [
-      ...prev.slice(
-        -(MAX_HISTORY - 1)
-      ),
-      current,
-    ]);
 
     setTimelineClips(
       cloneClips(next)
@@ -532,13 +741,12 @@ export default function Home() {
 
     setSelectedClipId(null);
 
-    videoRef.current?.pause();
-    setIsPlaying(false);
+    pauseAll();
   };
 
-  /* -----------------------------------------------------
+  /* -------------------------------------------------------
      IMPORT
-  ----------------------------------------------------- */
+  ------------------------------------------------------- */
 
   const handleImportClick =
     () => {
@@ -552,7 +760,8 @@ export default function Home() {
       const files =
         event.target.files;
 
-      if (!files?.length) return;
+      if (!files?.length)
+        return;
 
       const videoFiles =
         Array.from(files).filter(
@@ -562,7 +771,8 @@ export default function Home() {
             )
         );
 
-      if (!videoFiles.length) return;
+      if (!videoFiles.length)
+        return;
 
       setIsImporting(true);
 
@@ -580,15 +790,8 @@ export default function Home() {
                 media,
               ]
             );
-
-            setSelectedMedia(
-              (current) =>
-                current ?? media
-            );
           } catch (error) {
             console.error(
-              "Failed to import:",
-              file.name,
               error
             );
           }
@@ -600,9 +803,9 @@ export default function Home() {
       event.target.value = "";
     };
 
-  /* -----------------------------------------------------
-     PROJECT DURATION
-  ----------------------------------------------------- */
+  /* -------------------------------------------------------
+     PROJECT
+  ------------------------------------------------------- */
 
   const projectDuration =
     timelineClips.length
@@ -615,16 +818,43 @@ export default function Home() {
         )
       : 0;
 
-  /* -----------------------------------------------------
-     ADD MEDIA TO TIMELINE
-  ----------------------------------------------------- */
+  /* -------------------------------------------------------
+     ADD TO TRACK
+  ------------------------------------------------------- */
 
-  const addMediaToTimeline = (
-    media: MediaItem
+  const addMediaToTrack = (
+    media: MediaItem,
+    track: VideoTrack
   ) => {
     pushHistory();
 
-    const newClip: TimelineClip =
+    /*
+      V1:
+      append to end.
+
+      V2:
+      place at current playhead.
+    */
+
+    const timelineStart =
+      track === "V1"
+        ? Math.max(
+            0,
+            ...timelineClips
+              .filter(
+                (clip) =>
+                  clip.track ===
+                  "V1"
+              )
+              .map(
+                (clip) =>
+                  clip.timelineStart +
+                  clip.duration
+              )
+          )
+        : currentTime;
+
+    const clip: TimelineClip =
       {
         id: crypto.randomUUID(),
 
@@ -632,10 +862,12 @@ export default function Home() {
 
         name: media.name,
 
-        sourceUrl: media.url,
+        sourceUrl:
+          media.url,
 
-        timelineStart:
-          projectDuration,
+        track,
+
+        timelineStart,
 
         sourceStart: 0,
 
@@ -646,318 +878,469 @@ export default function Home() {
     setTimelineClips(
       (prev) => [
         ...prev,
-        newClip,
+        clip,
       ]
     );
 
     setSelectedClipId(
-      newClip.id
+      clip.id
     );
-
-    setSelectedMedia(media);
 
     setCurrentTime(
-      newClip.timelineStart
+      timelineStart
     );
 
-    pendingPreviewRef.current =
-      {
-        clipId: newClip.id,
-
-        timelineTime:
-          newClip.timelineStart,
-
-        autoplay: false,
-      };
-
-    activePlaybackClipIdRef.current =
-      newClip.id;
+    seekTimeline(
+      timelineStart,
+      false
+    );
   };
 
-  /* -----------------------------------------------------
-     PREVIEW SOURCE SWITCHING
-  ----------------------------------------------------- */
+  /* -------------------------------------------------------
+     PAUSE
+  ------------------------------------------------------- */
 
-  const previewTimelineClip =
+  const pauseAll = () => {
+    v1VideoRef.current?.pause();
+
+    v2VideoRef.current?.pause();
+
+    setIsPlaying(false);
+  };
+
+  /* -------------------------------------------------------
+     LOAD VIDEO SOURCE
+  ------------------------------------------------------- */
+
+  const ensureTrackSource =
     async (
-      clip: TimelineClip,
-      timelineTime: number,
-      autoplay: boolean
+      clip: TimelineClip
     ) => {
       const media =
         getMediaById(
           clip.mediaId
         );
 
-      if (!media) return;
+      if (!media)
+        return null;
 
-      const video =
-        videoRef.current;
+      const isV1 =
+        clip.track === "V1";
 
-      const sourceTime =
-        clip.sourceStart +
-        Math.max(
-          0,
-          timelineTime -
-            clip.timelineStart
-        );
+      const ref =
+        isV1
+          ? v1VideoRef.current
+          : v2VideoRef.current;
 
-      activePlaybackClipIdRef.current =
-        clip.id;
+      if (!ref)
+        return null;
 
-      setCurrentTime(
-        timelineTime
-      );
-
-      /*
-        If another source video needs loading,
-        save desired seek/play action.
-      */
+      const currentMedia =
+        isV1
+          ? activeV1Media
+          : activeV2Media;
 
       if (
-        selectedMedia?.id !==
+        currentMedia?.id !==
         media.id
       ) {
-        pendingPreviewRef.current =
-          {
-            clipId: clip.id,
-            timelineTime,
-            autoplay,
-          };
+        if (isV1) {
+          setActiveV1Media(
+            media
+          );
+        } else {
+          setActiveV2Media(
+            media
+          );
+        }
 
-        setSelectedMedia(
+        return null;
+      }
+
+      return ref;
+    };
+
+  /* -------------------------------------------------------
+     SYNC OVERLAY
+  ------------------------------------------------------- */
+
+  const syncV2ToTime =
+    async (
+      timelineTime: number,
+      autoplay: boolean
+    ) => {
+      if (!v2Visible) {
+        v2VideoRef.current?.pause();
+
+        activeV2ClipRef.current =
+          null;
+
+        return;
+      }
+
+      const clip =
+        getClipAtTime(
+          timelineClipsRef.current,
+
+          timelineTime,
+
+          "V2"
+        );
+
+      if (!clip) {
+        v2VideoRef.current?.pause();
+
+        activeV2ClipRef.current =
+          null;
+
+        return;
+      }
+
+      const media =
+        getMediaById(
+          clip.mediaId
+        );
+
+      if (!media)
+        return;
+
+      activeV2ClipRef.current =
+        clip.id;
+
+      if (
+        activeV2Media?.id !==
+        media.id
+      ) {
+        setActiveV2Media(
           media
         );
 
         return;
       }
 
-      if (!video) return;
+      const video =
+        v2VideoRef.current;
 
-      video.currentTime =
-        sourceTime;
+      if (!video)
+        return;
 
-      if (autoplay) {
+      const target =
+        clip.sourceStart +
+        timelineTime -
+        clip.timelineStart;
+
+      if (
+        Math.abs(
+          video.currentTime -
+            target
+        ) > 0.12
+      ) {
+        video.currentTime =
+          target;
+      }
+
+      if (
+        autoplay &&
+        video.paused
+      ) {
         try {
+          video.muted = true;
+
           await video.play();
         } catch {}
       }
     };
 
-  /* -----------------------------------------------------
-     WHEN PREVIEW VIDEO SOURCE LOADS
-  ----------------------------------------------------- */
+  /* -------------------------------------------------------
+     SEEK TIMELINE
+  ------------------------------------------------------- */
 
-  const handleLoadedMetadata =
-    async () => {
-      const video =
-        videoRef.current;
-
-      if (!video) return;
-
-      const pending =
-        pendingPreviewRef.current;
-
-      if (!pending) return;
-
-      const clip =
-        timelineClipsRef.current.find(
-          (item) =>
-            item.id ===
-            pending.clipId
+  const seekTimeline =
+    async (
+      timelineTime: number,
+      autoplay: boolean
+    ) => {
+      const safe =
+        Math.max(
+          0,
+          Math.min(
+            timelineTime,
+            projectDuration
+          )
         );
 
-      if (!clip) {
-        pendingPreviewRef.current =
-          null;
+      setCurrentTime(safe);
 
-        return;
+      const v1Clip =
+        getClipAtTime(
+          timelineClipsRef.current,
+
+          safe,
+
+          "V1"
+        );
+
+      if (v1Clip) {
+        const media =
+          getMediaById(
+            v1Clip.mediaId
+          );
+
+        if (media) {
+          activeV1ClipRef.current =
+            v1Clip.id;
+
+          if (
+            activeV1Media?.id !==
+            media.id
+          ) {
+            setActiveV1Media(
+              media
+            );
+          } else {
+            const video =
+              v1VideoRef.current;
+
+            if (video) {
+              video.currentTime =
+                v1Clip.sourceStart +
+                safe -
+                v1Clip.timelineStart;
+
+              video.muted =
+                audioMuted;
+
+              if (autoplay) {
+                try {
+                  await video.play();
+                } catch {}
+              }
+            }
+          }
+        }
+      } else {
+        v1VideoRef.current?.pause();
+
+        activeV1ClipRef.current =
+          null;
       }
 
-      const offset =
-        pending.timelineTime -
-        clip.timelineStart;
+      await syncV2ToTime(
+        safe,
+        autoplay
+      );
+    };
+
+  /* -------------------------------------------------------
+     SOURCE LOAD COMPLETE
+  ------------------------------------------------------- */
+
+  const handleV1Loaded =
+    async () => {
+      const clip =
+        getClipAtTime(
+          timelineClipsRef.current,
+
+          currentTime,
+
+          "V1"
+        );
+
+      if (!clip)
+        return;
+
+      const video =
+        v1VideoRef.current;
+
+      if (!video)
+        return;
+
+      activeV1ClipRef.current =
+        clip.id;
 
       video.currentTime =
         clip.sourceStart +
-        Math.max(0, offset);
+        currentTime -
+        clip.timelineStart;
 
-      activePlaybackClipIdRef.current =
-        clip.id;
+      video.muted =
+        audioMuted;
 
-      setCurrentTime(
-        pending.timelineTime
-      );
-
-      const autoplay =
-        pending.autoplay;
-
-      pendingPreviewRef.current =
-        null;
-
-      if (autoplay) {
+      if (isPlaying) {
         try {
           await video.play();
         } catch {}
       }
     };
 
-  /* -----------------------------------------------------
-     PLAY
-  ----------------------------------------------------- */
+  const handleV2Loaded =
+    async () => {
+      const clip =
+        getClipAtTime(
+          timelineClipsRef.current,
+
+          currentTime,
+
+          "V2"
+        );
+
+      if (!clip)
+        return;
+
+      const video =
+        v2VideoRef.current;
+
+      if (!video)
+        return;
+
+      activeV2ClipRef.current =
+        clip.id;
+
+      video.muted = true;
+
+      video.currentTime =
+        clip.sourceStart +
+        currentTime -
+        clip.timelineStart;
+
+      if (isPlaying) {
+        try {
+          await video.play();
+        } catch {}
+      }
+    };
+
+  /* -------------------------------------------------------
+     MASTER PLAYBACK
+  ------------------------------------------------------- */
 
   const togglePlay =
     async () => {
-      const video =
-        videoRef.current;
-
       if (!timelineClips.length)
         return;
 
-      if (
-        video &&
-        !video.paused
-      ) {
-        video.pause();
+      if (isPlaying) {
+        pauseAll();
+
         return;
       }
 
-      let targetTime =
+      let start =
         currentTime;
 
       if (
-        targetTime >=
+        start >=
         projectDuration
       ) {
-        targetTime = 0;
+        start = 0;
+
+        setCurrentTime(0);
       }
 
-      let clip =
-        getClipAtTimelineTime(
-          timelineClips,
-          targetTime
-        );
+      setIsPlaying(true);
 
-      if (!clip) {
-        clip = [
-          ...timelineClips,
-        ]
-          .sort(
-            (a, b) =>
-              a.timelineStart -
-              b.timelineStart
-          )
-          .find(
-            (item) =>
-              item.timelineStart >=
-              targetTime
-          );
-      }
-
-      if (!clip) return;
-
-      await previewTimelineClip(
-        clip,
-        Math.max(
-          targetTime,
-          clip.timelineStart
-        ),
+      await seekTimeline(
+        start,
         true
       );
     };
 
-  /* -----------------------------------------------------
-     PLAYBACK UPDATE
-  ----------------------------------------------------- */
+  /* -------------------------------------------------------
+     V1 MASTER TIME UPDATE
+  ------------------------------------------------------- */
 
-  const handlePreviewTimeUpdate =
+  const handleV1TimeUpdate =
     () => {
       const video =
-        videoRef.current;
+        v1VideoRef.current;
 
-      if (!video) return;
+      if (!video)
+        return;
 
       const activeClip =
         timelineClipsRef.current.find(
           (clip) =>
             clip.id ===
-            activePlaybackClipIdRef.current
+            activeV1ClipRef.current
         );
 
       if (!activeClip)
         return;
 
-      const sourceEnd =
-        activeClip.sourceStart +
-        activeClip.duration;
+      const offset =
+        video.currentTime -
+        activeClip.sourceStart;
 
-      /*
-        Still inside this clip.
-      */
-
-      if (
-        video.currentTime <
-        sourceEnd - 0.04
-      ) {
-        const offset =
-          video.currentTime -
-          activeClip.sourceStart;
-
-        setCurrentTime(
-          activeClip.timelineStart +
-            Math.max(0, offset)
+      const timelineTime =
+        activeClip.timelineStart +
+        Math.max(
+          0,
+          offset
         );
 
-        return;
-      }
-
-      /*
-        Clip ended → next timeline clip.
-      */
-
-      const timelineEnd =
+      const clipEnd =
         activeClip.timelineStart +
         activeClip.duration;
 
-      const sorted = [
-        ...timelineClipsRef.current,
-      ].sort(
-        (a, b) =>
-          a.timelineStart -
-          b.timelineStart
-      );
-
-      const nextClip =
-        sorted.find(
-          (clip) =>
-            clip.id !==
-              activeClip.id &&
-            clip.timelineStart >=
-              timelineEnd - 0.01
+      if (
+        timelineTime <
+        clipEnd - 0.04
+      ) {
+        setCurrentTime(
+          timelineTime
         );
 
-      if (nextClip) {
-        previewTimelineClip(
-          nextClip,
-          nextClip.timelineStart,
+        syncV2ToTime(
+          timelineTime,
           true
         );
 
         return;
       }
 
-      video.pause();
+      /*
+        Find next V1 clip.
+      */
 
-      setIsPlaying(false);
+      const next =
+        [...timelineClipsRef.current]
+          .filter(
+            (clip) =>
+              clip.track ===
+              "V1" &&
+              clip.id !==
+                activeClip.id
+          )
+          .sort(
+            (a, b) =>
+              a.timelineStart -
+              b.timelineStart
+          )
+          .find(
+            (clip) =>
+              clip.timelineStart >=
+              clipEnd - 0.01
+          );
+
+      if (next) {
+        seekTimeline(
+          next.timelineStart,
+          true
+        );
+
+        return;
+      }
+
+      pauseAll();
 
       setCurrentTime(
-        timelineEnd
+        clipEnd
       );
     };
 
-  /* -----------------------------------------------------
-     TIMELINE SEEK
-  ----------------------------------------------------- */
+  /* -------------------------------------------------------
+     CLICK TIMELINE
+  ------------------------------------------------------- */
 
   const handleTimelineClick =
     (
@@ -972,80 +1355,71 @@ export default function Home() {
       const rect =
         event.currentTarget.getBoundingClientRect();
 
-      const clickedTime =
+      const time =
         (event.clientX -
           rect.left) /
         pixelsPerSecond;
 
-      const safeTime =
-        Math.min(
-          Math.max(
-            clickedTime,
-            0
-          ),
-          projectDuration
-        );
-
-      videoRef.current?.pause();
-
-      setIsPlaying(false);
-
-      setCurrentTime(
-        safeTime
-      );
+      pauseAll();
 
       setSelectedClipId(
         null
       );
 
-      const clip =
-        getClipAtTimelineTime(
-          timelineClips,
-          safeTime
-        );
-
-      if (!clip) {
-        activePlaybackClipIdRef.current =
-          null;
-
-        return;
-      }
-
-      previewTimelineClip(
-        clip,
-        safeTime,
+      seekTimeline(
+        time,
         false
       );
     };
 
-  /* -----------------------------------------------------
-     SPLIT
-  ----------------------------------------------------- */
+  /* -------------------------------------------------------
+     SPLIT SELECTED/TOP CLIP
+  ------------------------------------------------------- */
 
   const handleSplit =
     () => {
+      if (tracksLocked)
+        return;
+
       const clips =
         timelineClipsRef.current;
 
-      const splitTime =
-        currentTime;
+      /*
+        Prefer selected clip.
+        Otherwise V2, then V1.
+      */
 
-      const index =
-        clips.findIndex(
-          (clip) => {
-            const end =
-              clip.timelineStart +
-              clip.duration;
+      let index = -1;
 
-            return (
-              splitTime >
+      if (selectedClipId) {
+        index =
+          clips.findIndex(
+            (clip) =>
+              clip.id ===
+              selectedClipId &&
+              currentTime >
                 clip.timelineStart +
                   0.05 &&
-              splitTime <
-                end - 0.05
-            );
-          }
-        );
+              currentTime <
+                clip.timelineStart +
+                  clip.duration -
+                  0.05
+          );
+      }
+
+      if (index === -1) {
+        index =
+          clips.findIndex(
+            (clip) =>
+              currentTime >
+                clip.timelineStart +
+                  0.05 &&
+              currentTime <
+                clip.timelineStart +
+                  clip.duration -
+                  0.05
+          );
+      }
 
       if (index === -1)
         return;
@@ -1056,14 +1430,14 @@ export default function Home() {
         clips[index];
 
       const leftDuration =
-        splitTime -
+        currentTime -
         clip.timelineStart;
 
       const rightDuration =
         clip.duration -
         leftDuration;
 
-      const leftClip: TimelineClip =
+      const left: TimelineClip =
         {
           ...clip,
 
@@ -1073,14 +1447,14 @@ export default function Home() {
             leftDuration,
         };
 
-      const rightClip: TimelineClip =
+      const right: TimelineClip =
         {
           ...clip,
 
           id: crypto.randomUUID(),
 
           timelineStart:
-            splitTime,
+            currentTime,
 
           sourceStart:
             clip.sourceStart +
@@ -1090,42 +1464,36 @@ export default function Home() {
             rightDuration,
         };
 
-      const updated =
+      const next =
         cloneClips(clips);
 
-      updated.splice(
+      next.splice(
         index,
         1,
-        leftClip,
-        rightClip
+        left,
+        right
       );
 
-      setTimelineClips(
-        updated
-      );
+      setTimelineClips(next);
 
       setSelectedClipId(
-        rightClip.id
+        right.id
       );
-
-      activePlaybackClipIdRef.current =
-        rightClip.id;
     };
 
-  /* -----------------------------------------------------
+  /* -------------------------------------------------------
      DELETE
-  ----------------------------------------------------- */
+  ------------------------------------------------------- */
 
   const deleteSelectedClip =
     () => {
-      if (!selectedClipId)
+      if (
+        !selectedClipId ||
+        tracksLocked
+      )
         return;
 
       pushHistory();
-
-      videoRef.current?.pause();
-
-      setIsPlaying(false);
 
       setTimelineClips(
         (prev) =>
@@ -1139,41 +1507,49 @@ export default function Home() {
       setSelectedClipId(
         null
       );
+
+      pauseAll();
     };
 
   const rippleDeleteSelectedClip =
     () => {
-      if (!selectedClipId)
+      if (
+        !selectedClipId ||
+        tracksLocked
+      )
+        return;
+
+      const deleted =
+        timelineClipsRef.current.find(
+          (clip) =>
+            clip.id ===
+            selectedClipId
+        );
+
+      if (!deleted)
         return;
 
       pushHistory();
 
-      videoRef.current?.pause();
-
-      setIsPlaying(false);
-
       setTimelineClips(
-        (prev) => {
-          const deleted =
-            prev.find(
-              (clip) =>
-                clip.id ===
-                selectedClipId
-            );
-
-          if (!deleted)
-            return prev;
-
-          return prev
+        (prev) =>
+          prev
             .filter(
               (clip) =>
                 clip.id !==
-                selectedClipId
+                deleted.id
             )
             .map((clip) => {
+              /*
+                Ripple only clips
+                on same track.
+              */
+
               if (
+                clip.track ===
+                  deleted.track &&
                 clip.timelineStart >
-                deleted.timelineStart
+                  deleted.timelineStart
               ) {
                 return {
                   ...clip,
@@ -1189,29 +1565,32 @@ export default function Home() {
               }
 
               return clip;
-            });
-        }
+            })
       );
 
       setSelectedClipId(
         null
       );
+
+      pauseAll();
     };
 
-  /* -----------------------------------------------------
-     MAGNETIC SNAP
-  ----------------------------------------------------- */
+  /* -------------------------------------------------------
+     SNAP
+  ------------------------------------------------------- */
 
   const getSnappedStart = (
     clipId: string,
-    proposedStart: number,
+
+    proposed: number,
+
     duration: number
   ) => {
-    const snapThreshold =
+    const threshold =
       10 /
       pixelsPerSecond;
 
-    const snapPoints = [0];
+    const points = [0];
 
     timelineClipsRef.current.forEach(
       (clip) => {
@@ -1220,170 +1599,240 @@ export default function Home() {
         )
           return;
 
-        snapPoints.push(
+        points.push(
           clip.timelineStart
         );
 
-        snapPoints.push(
+        points.push(
           clip.timelineStart +
             clip.duration
         );
       }
     );
 
-    let bestStart =
-      proposedStart;
+    let best =
+      proposed;
 
-    let bestDistance =
-      snapThreshold;
+    let distance =
+      threshold;
 
     const proposedEnd =
-      proposedStart +
-      duration;
+      proposed + duration;
 
-    snapPoints.forEach(
-      (point) => {
-        const startDistance =
-          Math.abs(
-            proposedStart -
-              point
-          );
+    points.forEach((point) => {
+      const startDistance =
+        Math.abs(
+          proposed - point
+        );
 
-        if (
-          startDistance <
-          bestDistance
-        ) {
-          bestDistance =
-            startDistance;
+      if (
+        startDistance <
+        distance
+      ) {
+        distance =
+          startDistance;
 
-          bestStart =
-            point;
-        }
-
-        const endDistance =
-          Math.abs(
-            proposedEnd -
-              point
-          );
-
-        if (
-          endDistance <
-          bestDistance
-        ) {
-          bestDistance =
-            endDistance;
-
-          bestStart =
-            point -
-            duration;
-        }
+        best =
+          point;
       }
-    );
 
-    return Math.max(
-      0,
-      bestStart
-    );
+      const endDistance =
+        Math.abs(
+          proposedEnd - point
+        );
+
+      if (
+        endDistance <
+        distance
+      ) {
+        distance =
+          endDistance;
+
+        best =
+          point - duration;
+      }
+    });
+
+    return Math.max(0, best);
   };
 
-  /* -----------------------------------------------------
+  /* -------------------------------------------------------
      DRAG
-  ----------------------------------------------------- */
+  ------------------------------------------------------- */
 
-  const startClipDrag =
-    (
-      event: React.MouseEvent,
-      clip: TimelineClip
-    ) => {
-      event.stopPropagation();
+  const startClipDrag = (
+    event: React.MouseEvent,
 
-      videoRef.current?.pause();
+    clip: TimelineClip
+  ) => {
+    if (tracksLocked)
+      return;
 
-      setIsPlaying(false);
+    event.stopPropagation();
 
-      setSelectedClipId(
-        clip.id
+    pauseAll();
+
+    setSelectedClipId(
+      clip.id
+    );
+
+    setDraggingClipId(
+      clip.id
+    );
+
+    operationSnapshotRef.current =
+      cloneClips(
+        timelineClipsRef.current
       );
 
-      setDraggingClipId(
-        clip.id
-      );
+    dragStateRef.current =
+      {
+        clipId: clip.id,
 
-      operationSnapshotRef.current =
-        cloneClips(
-          timelineClipsRef.current
-        );
+        startMouseX:
+          event.clientX,
 
-      dragStateRef.current =
-        {
-          clipId: clip.id,
+        initialTimelineStart:
+          clip.timelineStart,
+      };
+  };
 
-          startMouseX:
-            event.clientX,
-
-          initialTimelineStart:
-            clip.timelineStart,
-        };
-    };
-
-  /* -----------------------------------------------------
+  /* -------------------------------------------------------
      TRIM
-  ----------------------------------------------------- */
+  ------------------------------------------------------- */
 
-  const startTrim =
-    (
-      event: React.MouseEvent,
-      clip: TimelineClip,
-      side: "left" | "right"
-    ) => {
-      event.stopPropagation();
+  const startTrim = (
+    event: React.MouseEvent,
 
-      event.preventDefault();
+    clip: TimelineClip,
 
-      videoRef.current?.pause();
+    side: "left" | "right"
+  ) => {
+    if (tracksLocked)
+      return;
 
-      setIsPlaying(false);
+    event.stopPropagation();
 
-      setSelectedClipId(
-        clip.id
+    event.preventDefault();
+
+    pauseAll();
+
+    setSelectedClipId(
+      clip.id
+    );
+
+    setTrimmingClipId(
+      clip.id
+    );
+
+    operationSnapshotRef.current =
+      cloneClips(
+        timelineClipsRef.current
       );
 
-      setTrimmingClipId(
-        clip.id
-      );
+    trimStateRef.current =
+      {
+        clipId: clip.id,
 
-      operationSnapshotRef.current =
-        cloneClips(
-          timelineClipsRef.current
-        );
+        side,
 
-      trimStateRef.current =
-        {
-          clipId: clip.id,
+        startMouseX:
+          event.clientX,
 
-          side,
+        initialTimelineStart:
+          clip.timelineStart,
 
-          startMouseX:
-            event.clientX,
+        initialSourceStart:
+          clip.sourceStart,
 
-          initialTimelineStart:
-            clip.timelineStart,
+        initialDuration:
+          clip.duration,
+      };
+  };
 
-          initialSourceStart:
-            clip.sourceStart,
+  /* -------------------------------------------------------
+     RESIZE TRACK
+  ------------------------------------------------------- */
 
-          initialDuration:
-            clip.duration,
-        };
-    };
+  const startTrackResize = (
+    event: React.MouseEvent,
 
-  /* -----------------------------------------------------
-     DRAG / TRIM GLOBAL
-  ----------------------------------------------------- */
+    track:
+      | "V1"
+      | "V2"
+      | "A1",
+
+    height: number
+  ) => {
+    resizeStateRef.current =
+      {
+        track,
+
+        startMouseY:
+          event.clientY,
+
+        initialHeight:
+          height,
+      };
+  };
+
+  /* -------------------------------------------------------
+     GLOBAL MOUSE
+  ------------------------------------------------------- */
 
   useEffect(() => {
-    const handleMouseMove =
+    const mouseMove =
       (event: MouseEvent) => {
+        /* TRACK HEIGHT */
+
+        const resize =
+          resizeStateRef.current;
+
+        if (resize) {
+          const delta =
+            event.clientY -
+            resize.startMouseY;
+
+          const height =
+            Math.min(
+              180,
+
+              Math.max(
+                44,
+
+                resize.initialHeight +
+                  delta
+              )
+            );
+
+          if (
+            resize.track ===
+            "V1"
+          ) {
+            setV1Height(height);
+          }
+
+          if (
+            resize.track ===
+            "V2"
+          ) {
+            setV2Height(height);
+          }
+
+          if (
+            resize.track ===
+            "A1"
+          ) {
+            setAudioHeight(
+              height
+            );
+          }
+
+          return;
+        }
+
+        /* DRAG */
+
         const drag =
           dragStateRef.current;
 
@@ -1395,26 +1844,27 @@ export default function Home() {
                 drag.clipId
             );
 
-          if (!clip) return;
+          if (!clip)
+            return;
 
-          const deltaSeconds =
+          const delta =
             (event.clientX -
               drag.startMouseX) /
             pixelsPerSecond;
 
-          const proposedStart =
+          const proposed =
             Math.max(
               0,
 
               drag.initialTimelineStart +
-                deltaSeconds
+                delta
             );
 
-          const snappedStart =
+          const snapped =
             getSnappedStart(
-              drag.clipId,
+              clip.id,
 
-              proposedStart,
+              proposed,
 
               clip.duration
             );
@@ -1424,12 +1874,12 @@ export default function Home() {
               prev.map(
                 (item) =>
                   item.id ===
-                  drag.clipId
+                  clip.id
                     ? {
                         ...item,
 
                         timelineStart:
-                          snappedStart,
+                          snapped,
                       }
                     : item
               )
@@ -1438,205 +1888,189 @@ export default function Home() {
           return;
         }
 
+        /* TRIM */
+
         const trim =
           trimStateRef.current;
 
-        if (!trim) return;
+        if (!trim)
+          return;
 
-        const deltaSeconds =
+        const clip =
+          timelineClipsRef.current.find(
+            (item) =>
+              item.id ===
+              trim.clipId
+          );
+
+        if (!clip)
+          return;
+
+        const media =
+          getMediaById(
+            clip.mediaId
+          );
+
+        const delta =
           (event.clientX -
             trim.startMouseX) /
           pixelsPerSecond;
 
-        const activeClip =
-          timelineClipsRef.current.find(
-            (clip) =>
-              clip.id ===
-              trim.clipId
-          );
+        if (
+          trim.side === "left"
+        ) {
+          let allowed =
+            Math.max(
+              delta,
 
-        if (!activeClip)
-          return;
+              -trim.initialSourceStart
+            );
 
-        const media =
-          mediaItems.find(
-            (item) =>
-              item.id ===
-              activeClip.mediaId
-          );
+          allowed =
+            Math.min(
+              allowed,
 
-        if (trim.side === "left") {
-          let delta =
-            deltaSeconds;
+              trim.initialDuration -
+                MIN_CLIP_DURATION
+            );
 
-          delta = Math.max(
-            delta,
-            -trim.initialSourceStart
-          );
-
-          delta = Math.min(
-            delta,
-
-            trim.initialDuration -
-              MIN_CLIP_DURATION
-          );
-
-          const newTimelineStart =
+          const newStart =
             Math.max(
               0,
 
               trim.initialTimelineStart +
-                delta
+                allowed
             );
 
-          const actualDelta =
-            newTimelineStart -
+          const actual =
+            newStart -
             trim.initialTimelineStart;
-
-          const newSourceStart =
-            trim.initialSourceStart +
-            actualDelta;
-
-          const newDuration =
-            trim.initialDuration -
-            actualDelta;
 
           setTimelineClips(
             (prev) =>
               prev.map(
-                (clip) =>
-                  clip.id ===
+                (item) =>
+                  item.id ===
                   trim.clipId
                     ? {
-                        ...clip,
+                        ...item,
 
                         timelineStart:
-                          newTimelineStart,
+                          newStart,
 
                         sourceStart:
                           Math.max(
                             0,
 
-                            newSourceStart
+                            trim.initialSourceStart +
+                              actual
                           ),
 
                         duration:
                           Math.max(
                             MIN_CLIP_DURATION,
 
-                            newDuration
+                            trim.initialDuration -
+                              actual
                           ),
                       }
-                    : clip
+                    : item
               )
           );
-        }
-
-        if (
-          trim.side === "right"
-        ) {
-          let newDuration =
-            trim.initialDuration +
-            deltaSeconds;
-
-          newDuration =
+        } else {
+          let duration =
             Math.max(
               MIN_CLIP_DURATION,
 
-              newDuration
+              trim.initialDuration +
+                delta
             );
 
           if (media) {
-            const maxDuration =
-              media.duration -
-              trim.initialSourceStart;
-
-            newDuration =
+            duration =
               Math.min(
-                newDuration,
+                duration,
 
-                maxDuration
+                media.duration -
+                  trim.initialSourceStart
               );
           }
 
           setTimelineClips(
             (prev) =>
               prev.map(
-                (clip) =>
-                  clip.id ===
+                (item) =>
+                  item.id ===
                   trim.clipId
                     ? {
-                        ...clip,
+                        ...item,
 
-                        duration:
-                          newDuration,
+                        duration,
                       }
-                    : clip
+                    : item
               )
           );
         }
       };
 
-    const handleMouseUp =
-      () => {
-        if (
-          operationSnapshotRef.current
-        ) {
-          const oldState =
-            operationSnapshotRef.current;
+    const mouseUp = () => {
+      resizeStateRef.current =
+        null;
 
-          const changed =
-            JSON.stringify(
-              oldState
-            ) !==
-            JSON.stringify(
-              timelineClipsRef.current
-            );
+      if (
+        operationSnapshotRef.current
+      ) {
+        const old =
+          operationSnapshotRef.current;
 
-          if (changed) {
-            pushHistory(
-              oldState
-            );
-          }
+        const changed =
+          JSON.stringify(old) !==
+          JSON.stringify(
+            timelineClipsRef.current
+          );
+
+        if (changed) {
+          pushHistory(old);
         }
+      }
 
-        operationSnapshotRef.current =
-          null;
+      operationSnapshotRef.current =
+        null;
 
-        dragStateRef.current =
-          null;
+      dragStateRef.current =
+        null;
 
-        trimStateRef.current =
-          null;
+      trimStateRef.current =
+        null;
 
-        setDraggingClipId(
-          null
-        );
+      setDraggingClipId(
+        null
+      );
 
-        setTrimmingClipId(
-          null
-        );
-      };
+      setTrimmingClipId(
+        null
+      );
+    };
 
     window.addEventListener(
       "mousemove",
-      handleMouseMove
+      mouseMove
     );
 
     window.addEventListener(
       "mouseup",
-      handleMouseUp
+      mouseUp
     );
 
     return () => {
       window.removeEventListener(
         "mousemove",
-        handleMouseMove
+        mouseMove
       );
 
       window.removeEventListener(
         "mouseup",
-        handleMouseUp
+        mouseUp
       );
     };
   }, [
@@ -1644,36 +2078,12 @@ export default function Home() {
     mediaItems,
   ]);
 
-  /* -----------------------------------------------------
-     ZOOM
-  ----------------------------------------------------- */
-
-  const zoomIn =
-    () => {
-      setZoom((prev) =>
-        Math.min(
-          300,
-          prev + 25
-        )
-      );
-    };
-
-  const zoomOut =
-    () => {
-      setZoom((prev) =>
-        Math.max(
-          50,
-          prev - 25
-        )
-      );
-    };
-
-  /* -----------------------------------------------------
+  /* -------------------------------------------------------
      SHORTCUTS
-  ----------------------------------------------------- */
+  ------------------------------------------------------- */
 
   useEffect(() => {
-    const handleKeyDown =
+    const keyboard =
       (
         event: KeyboardEvent
       ) => {
@@ -1687,7 +2097,8 @@ export default function Home() {
             "TEXTAREA" ||
           target.isContentEditable;
 
-        if (typing) return;
+        if (typing)
+          return;
 
         if (
           event.ctrlKey &&
@@ -1726,8 +2137,7 @@ export default function Home() {
         }
 
         if (
-          event.code ===
-          "Space"
+          event.code === "Space"
         ) {
           event.preventDefault();
 
@@ -1750,13 +2160,13 @@ export default function Home() {
 
     window.addEventListener(
       "keydown",
-      handleKeyDown
+      keyboard
     );
 
     return () =>
       window.removeEventListener(
         "keydown",
-        handleKeyDown
+        keyboard
       );
   }, [
     past,
@@ -1765,51 +2175,19 @@ export default function Home() {
     currentTime,
     timelineClips,
     projectDuration,
-    selectedMedia,
-    mediaItems,
+    activeV1Media,
+    activeV2Media,
+    isPlaying,
+    tracksLocked,
   ]);
 
-  /* -----------------------------------------------------
-     TIMELINE VISUALS
-  ----------------------------------------------------- */
-
-  const timelineWidth =
-    Math.max(
-      projectDuration *
-        pixelsPerSecond,
-      900
-    );
-
-  const playheadPosition =
-    currentTime *
-    pixelsPerSecond;
-
-  const rulerSeconds =
-    Math.max(
-      45,
-
-      Math.ceil(
-        projectDuration + 10
-      )
-    );
-
-  const rulerMarks: number[] =
-    [];
-
-  for (
-    let time = 0;
-    time <= rulerSeconds;
-    time += 5
-  ) {
-    rulerMarks.push(time);
-  }
-
-  /* -----------------------------------------------------
-     FRAME STRIP
-  ----------------------------------------------------- */
+  /* -------------------------------------------------------
+     VISUAL HELPERS
+  ------------------------------------------------------- */
 
   const getFramesForClip = (
     clip: TimelineClip,
+
     width: number
   ) => {
     const media =
@@ -1819,38 +2197,37 @@ export default function Home() {
 
     if (
       !media ||
-      !media.thumbnails.length ||
-      !media.duration
+      !media.thumbnails.length
     ) {
       return [];
     }
 
-    const frameCount =
+    const count =
       Math.max(
         1,
 
         Math.min(
-          15,
+          18,
 
           Math.ceil(
-            width / 70
+            width / 65
           )
         )
       );
 
     return Array.from(
       {
-        length: frameCount,
+        length: count,
       },
 
       (_, index) => {
         const progress =
-          frameCount === 1
+          count === 1
             ? 0
             : index /
-              (frameCount - 1);
+              (count - 1);
 
-        const sourceTime =
+        const source =
           clip.sourceStart +
           clip.duration *
             progress;
@@ -1862,12 +2239,12 @@ export default function Home() {
             Math.max(
               0,
 
-              sourceTime /
+              source /
                 media.duration
             )
           );
 
-        const thumbIndex =
+        const thumb =
           Math.round(
             normalized *
               (media.thumbnails
@@ -1877,18 +2254,15 @@ export default function Home() {
 
         return media
           .thumbnails[
-          thumbIndex
+          thumb
         ];
       }
     );
   };
 
-  /* -----------------------------------------------------
-     WAVEFORM FOR CLIP
-  ----------------------------------------------------- */
-
-  const getWaveformForClip = (
+  const getWaveform = (
     clip: TimelineClip,
+
     width: number
   ) => {
     const media =
@@ -1898,18 +2272,17 @@ export default function Home() {
 
     if (
       !media ||
-      !media.waveform.length ||
-      !media.duration
+      !media.waveform.length
     ) {
       return [];
     }
 
-    const barCount =
+    const count =
       Math.max(
         5,
 
         Math.min(
-          100,
+          150,
 
           Math.floor(
             width / 4
@@ -1919,17 +2292,17 @@ export default function Home() {
 
     return Array.from(
       {
-        length: barCount,
+        length: count,
       },
 
       (_, index) => {
         const progress =
-          barCount === 1
+          count === 1
             ? 0
             : index /
-              (barCount - 1);
+              (count - 1);
 
-        const sourceTime =
+        const source =
           clip.sourceStart +
           clip.duration *
             progress;
@@ -1941,7 +2314,7 @@ export default function Home() {
             Math.max(
               0,
 
-              sourceTime /
+              source /
                 media.duration
             )
           );
@@ -1963,9 +2336,174 @@ export default function Home() {
     );
   };
 
-  return (
-    <main className="h-screen overflow-hidden bg-[#090B0F] text-[#F4F4F5] select-none">
+  const timelineWidth =
+    Math.max(
+      projectDuration *
+        pixelsPerSecond,
 
+      900
+    );
+
+  const playhead =
+    currentTime *
+    pixelsPerSecond;
+
+  const rulerMarks: number[] =
+    [];
+
+  const rulerEnd =
+    Math.max(
+      45,
+
+      Math.ceil(
+        projectDuration + 10
+      )
+    );
+
+  for (
+    let i = 0;
+    i <= rulerEnd;
+    i += 5
+  ) {
+    rulerMarks.push(i);
+  }
+
+  /* -------------------------------------------------------
+     CLIP RENDERER
+  ------------------------------------------------------- */
+
+  const renderVideoClips = (
+    track: VideoTrack,
+
+    trackHeight: number
+  ) =>
+    timelineClips
+      .filter(
+        (clip) =>
+          clip.track === track
+      )
+      .map((clip) => {
+        const left =
+          clip.timelineStart *
+          pixelsPerSecond;
+
+        const width =
+          clip.duration *
+          pixelsPerSecond;
+
+        const selected =
+          selectedClipId ===
+          clip.id;
+
+        const frames =
+          getFramesForClip(
+            clip,
+            width
+          );
+
+        return (
+          <div
+            key={clip.id}
+            onMouseDown={(event) =>
+              startClipDrag(
+                event,
+                clip
+              )
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+
+              setSelectedClipId(
+                clip.id
+              );
+
+              pauseAll();
+
+              seekTimeline(
+                clip.timelineStart,
+                false
+              );
+            }}
+            className={`absolute top-1 bottom-1 overflow-hidden rounded-md ${
+              tracksLocked
+                ? "cursor-default"
+                : "cursor-grab active:cursor-grabbing"
+            } ${
+              selected
+                ? "border-2 border-violet-200"
+                : "border border-violet-500/40"
+            }`}
+            style={{
+              left: `${left}px`,
+
+              width: `${Math.max(
+                width,
+                4
+              )}px`,
+            }}
+          >
+            <div className="absolute inset-0 flex bg-[#181222]">
+              {frames.map(
+                (
+                  frame,
+                  index
+                ) => (
+                  <img
+                    key={index}
+                    src={frame}
+                    alt=""
+                    draggable={false}
+                    className="h-full flex-1 min-w-0 object-cover opacity-80"
+                  />
+                )
+              )}
+            </div>
+
+            <div className="absolute inset-0 bg-violet-600/10" />
+
+            <span className="absolute left-2 top-1 z-10 rounded bg-black/65 px-1.5 py-[2px] text-[9px] max-w-[70%] truncate">
+              {clip.name}
+            </span>
+
+            {!tracksLocked && (
+              <>
+                <div
+                  onMouseDown={(event) =>
+                    startTrim(
+                      event,
+                      clip,
+                      "left"
+                    )
+                  }
+                  className={`absolute left-0 top-0 bottom-0 z-20 w-[6px] cursor-ew-resize ${
+                    selected
+                      ? "bg-violet-100"
+                      : ""
+                  }`}
+                />
+
+                <div
+                  onMouseDown={(event) =>
+                    startTrim(
+                      event,
+                      clip,
+                      "right"
+                    )
+                  }
+                  className={`absolute right-0 top-0 bottom-0 z-20 w-[6px] cursor-ew-resize ${
+                    selected
+                      ? "bg-violet-100"
+                      : ""
+                  }`}
+                />
+              </>
+            )}
+          </div>
+        );
+      });
+
+  return (
+    <main className="h-screen bg-[#090B0F] text-[#F4F4F5] overflow-hidden select-none">
       <input
         ref={fileInputRef}
         type="file"
@@ -1979,10 +2517,8 @@ export default function Home() {
 
       {/* TOP BAR */}
 
-      <header className="h-14 border-b border-[#222630] bg-[#0D1015] flex items-center justify-between px-4">
-
+      <header className="h-14 shrink-0 border-b border-[#222630] bg-[#0D1015] flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
-
           <div className="w-8 h-8 rounded-xl bg-violet-500 flex items-center justify-center font-bold">
             C
           </div>
@@ -1990,29 +2526,25 @@ export default function Home() {
           <span className="font-semibold">
             CUTX
           </span>
-
         </div>
 
         <div className="flex items-center gap-3">
-
           <input
             defaultValue="Untitled Project"
-            className="bg-transparent text-sm text-center outline-none border-b border-transparent focus:border-violet-400"
+            className="bg-transparent text-sm text-center outline-none"
           />
 
           <div className="flex items-center gap-1 text-[11px] text-emerald-400">
             <Check size={13} />
             Saved
           </div>
-
         </div>
 
         <div className="flex items-center gap-2">
-
           <button
             onClick={undo}
             disabled={!past.length}
-            className="w-9 h-9 rounded-lg hover:bg-white/5 flex items-center justify-center text-white/50 disabled:opacity-20"
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 disabled:opacity-20"
           >
             <Undo2 size={17} />
           </button>
@@ -2020,7 +2552,7 @@ export default function Home() {
           <button
             onClick={redo}
             disabled={!future.length}
-            className="w-9 h-9 rounded-lg hover:bg-white/5 flex items-center justify-center text-white/50 disabled:opacity-20"
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 disabled:opacity-20"
           >
             <Redo2 size={17} />
           </button>
@@ -2028,21 +2560,16 @@ export default function Home() {
           <button className="bg-violet-500 hover:bg-violet-400 px-5 py-2 rounded-lg text-sm font-semibold">
             Export
           </button>
-
         </div>
-
       </header>
 
       <div className="flex h-[calc(100vh-56px)] flex-col">
-
         {/* WORKSPACE */}
 
         <div className="flex flex-1 min-h-0">
+          {/* TOOLS */}
 
-          {/* LEFT TOOLBAR */}
-
-          <aside className="w-[74px] border-r border-[#222630] bg-[#0D1015] py-3 flex flex-col items-center gap-1">
-
+          <aside className="w-[74px] shrink-0 border-r border-[#222630] bg-[#0D1015] py-3 flex flex-col items-center gap-1">
             {[
               {
                 label: "Media",
@@ -2065,7 +2592,7 @@ export default function Home() {
                 icon: Sparkles,
               },
             ].map(
-              (item, index) => {
+              (item, i) => {
                 const Icon =
                   item.icon;
 
@@ -2075,9 +2602,9 @@ export default function Home() {
                       item.label
                     }
                     className={`w-[58px] py-2.5 rounded-xl flex flex-col items-center gap-1 ${
-                      index === 0
+                      i === 0
                         ? "bg-violet-500/15 text-violet-300"
-                        : "text-white/45 hover:bg-white/5 hover:text-white"
+                        : "text-white/45 hover:bg-white/5"
                     }`}
                   >
                     <Icon
@@ -2093,23 +2620,22 @@ export default function Home() {
                 );
               }
             )}
-
           </aside>
 
-          {/* MEDIA LIBRARY */}
+          {/* MEDIA */}
 
-          <section className="w-[290px] border-r border-[#222630] bg-[#101319] p-4 overflow-y-auto">
-
-            <div className="flex justify-between items-center mb-4">
-
+          <section className="w-[300px] shrink-0 border-r border-[#222630] bg-[#101319] p-4 overflow-y-auto">
+            <div className="flex justify-between mb-4">
               <h2 className="text-sm font-semibold">
                 Media
               </h2>
 
               <span className="text-[10px] text-white/30">
-                {mediaItems.length} files
+                {
+                  mediaItems.length
+                }{" "}
+                files
               </span>
-
             </div>
 
             <button
@@ -2119,7 +2645,7 @@ export default function Home() {
               disabled={
                 isImporting
               }
-              className="w-full h-24 rounded-xl border border-dashed border-[#323846] bg-[#12161D] hover:border-violet-500/50 flex flex-col items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full h-24 rounded-xl border border-dashed border-[#323846] flex flex-col items-center justify-center gap-2"
             >
               <Upload
                 size={20}
@@ -2128,7 +2654,7 @@ export default function Home() {
 
               <span className="text-xs">
                 {isImporting
-                  ? "Analyzing media..."
+                  ? "Analyzing..."
                   : "Import media"}
               </span>
 
@@ -2138,152 +2664,152 @@ export default function Home() {
             </button>
 
             <div className="grid grid-cols-2 gap-3 mt-4">
-
               {mediaItems.map(
-                (item) => (
+                (media) => (
                   <div
-                    key={item.id}
-                    onClick={() =>
-                      setSelectedMedia(
-                        item
-                      )
-                    }
-                    className={`overflow-hidden rounded-xl border transition cursor-pointer ${
-                      selectedMedia?.id ===
-                      item.id
-                        ? "border-violet-500 bg-violet-500/10"
-                        : "border-[#282D36] bg-[#151920] hover:border-[#3A404C]"
-                    }`}
+                    key={media.id}
+                    className="rounded-xl overflow-hidden border border-[#282D36] bg-[#151920]"
                   >
-
-                    <div className="aspect-video bg-black relative overflow-hidden">
-
-                      {item.thumbnails[0] ? (
+                    <div className="aspect-video bg-black relative">
+                      {media
+                        .thumbnails[0] ? (
                         <img
                           src={
-                            item
+                            media
                               .thumbnails[0]
                           }
                           alt=""
+                          draggable={
+                            false
+                          }
                           className="w-full h-full object-cover"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <MonitorPlay
                             size={22}
-                            className="text-white/25"
                           />
                         </div>
                       )}
 
-                      <span className="absolute right-1 bottom-1 bg-black/75 rounded px-1 text-[8px]">
+                      <span className="absolute bottom-1 right-1 text-[8px] bg-black/70 px-1 rounded">
                         {formatTime(
-                          item.duration
+                          media.duration
                         )}
                       </span>
-
                     </div>
 
                     <div className="p-2">
-
                       <p className="text-[10px] truncate">
-                        {item.name}
+                        {
+                          media.name
+                        }
                       </p>
 
-                      <button
-                        onClick={(
-                          event
-                        ) => {
-                          event.stopPropagation();
+                      <div className="grid grid-cols-2 gap-1 mt-2">
+                        <button
+                          onClick={() =>
+                            addMediaToTrack(
+                              media,
+                              "V1"
+                            )
+                          }
+                          className="h-6 rounded bg-violet-500/15 hover:bg-violet-500/30 text-[9px] text-violet-200"
+                        >
+                          + V1
+                        </button>
 
-                          addMediaToTimeline(
-                            item
-                          );
-                        }}
-                        className="mt-2 w-full h-6 rounded-md bg-violet-500/15 hover:bg-violet-500/30 text-violet-200 flex items-center justify-center gap-1 text-[9px]"
-                      >
-                        <Plus size={11} />
-                        Timeline
-                      </button>
-
+                        <button
+                          onClick={() =>
+                            addMediaToTrack(
+                              media,
+                              "V2"
+                            )
+                          }
+                          className="h-6 rounded bg-blue-500/15 hover:bg-blue-500/30 text-[9px] text-blue-200"
+                        >
+                          + V2
+                        </button>
+                      </div>
                     </div>
-
                   </div>
                 )
               )}
-
             </div>
-
           </section>
 
           {/* PREVIEW */}
 
-          <section className="flex-1 min-w-0 bg-[#090B0F] flex flex-col">
+          <section className="flex-1 min-w-0 flex flex-col bg-[#090B0F]">
+            <div className="flex-1 min-h-0 flex items-center justify-center px-8 py-6">
+              <div className="relative aspect-video h-[calc(100%-24px)] max-h-[430px] max-w-[calc(100%-32px)] bg-black rounded-xl overflow-hidden border border-[#242933]">
+                {/* V1 */}
 
-            <div className="flex-1 min-h-0 flex items-center justify-center px-8 py-6 overflow-hidden">
-
-              <div
-                className="
-                  aspect-video
-                  w-auto
-                  h-[calc(100%-24px)]
-                  max-w-[calc(100%-32px)]
-                  max-h-[430px]
-                  bg-black
-                  rounded-xl
-                  border border-[#242933]
-                  shadow-2xl
-                  shadow-black/40
-                  overflow-hidden
-                "
-              >
-
-                {selectedMedia ? (
+                {activeV1Media && (
                   <video
-                    ref={videoRef}
+                    ref={
+                      v1VideoRef
+                    }
                     key={
-                      selectedMedia.id
+                      activeV1Media.id
                     }
                     src={
-                      selectedMedia.url
+                      activeV1Media.url
                     }
                     onLoadedMetadata={
-                      handleLoadedMetadata
+                      handleV1Loaded
                     }
                     onTimeUpdate={
-                      handlePreviewTimeUpdate
+                      handleV1TimeUpdate
                     }
-                    onPlay={() =>
-                      setIsPlaying(
-                        true
-                      )
+                    muted={
+                      audioMuted
                     }
-                    onPause={() =>
-                      setIsPlaying(
-                        false
-                      )
-                    }
-                    className="w-full h-full object-contain"
+                    className={`absolute inset-0 w-full h-full object-contain ${
+                      v1Visible
+                        ? "opacity-100"
+                        : "opacity-0"
+                    }`}
                   />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-white/25">
-                    <MonitorPlay
-                      size={36}
-                    />
-
-                    <span className="text-xs">
-                      Import media to begin
-                    </span>
-                  </div>
                 )}
 
-              </div>
+                {/* V2 OVERLAY */}
 
+                {activeV2Media &&
+                  activeV2ClipRef.current && (
+                    <video
+                      ref={
+                        v2VideoRef
+                      }
+                      key={
+                        activeV2Media.id
+                      }
+                      src={
+                        activeV2Media.url
+                      }
+                      onLoadedMetadata={
+                        handleV2Loaded
+                      }
+                      muted
+                      className={`absolute inset-0 z-10 w-full h-full object-contain ${
+                        v2Visible
+                          ? "opacity-100"
+                          : "opacity-0"
+                      }`}
+                    />
+                  )}
+
+                {!activeV1Media &&
+                  !activeV2Media && (
+                    <div className="absolute inset-0 flex items-center justify-center text-white/25">
+                      Import and add media
+                    </div>
+                  )}
+              </div>
             </div>
 
-            <div className="h-12 border-t border-[#1D222B] flex items-center justify-center gap-5">
-
-              <span className="text-xs text-white/40 tabular-nums">
+            <div className="h-12 shrink-0 border-t border-[#1D222B] flex items-center justify-center gap-5">
+              <span className="text-xs text-white/40">
                 {formatTime(
                   currentTime
                 )}
@@ -2293,39 +2819,32 @@ export default function Home() {
                 onClick={
                   togglePlay
                 }
-                disabled={
-                  !timelineClips.length
-                }
-                className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center disabled:opacity-30"
+                className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center"
               >
-
                 {isPlaying ? (
-                  <Pause size={15} />
+                  <Pause
+                    size={15}
+                  />
                 ) : (
                   <Play
                     size={15}
                     fill="currentColor"
                   />
                 )}
-
               </button>
 
-              <span className="text-xs text-white/40 tabular-nums">
+              <span className="text-xs text-white/40">
                 {formatTime(
                   projectDuration
                 )}
               </span>
-
             </div>
-
           </section>
 
           {/* PROPERTIES */}
 
-          <aside className="w-[290px] border-l border-[#222630] bg-[#101319] overflow-y-auto">
-
+          <aside className="w-[290px] shrink-0 border-l border-[#222630] bg-[#101319] overflow-y-auto">
             <div className="h-12 border-b border-[#222630] flex px-4 gap-5">
-
               <button className="text-xs text-violet-300 border-b-2 border-violet-400">
                 Video
               </button>
@@ -2337,67 +2856,58 @@ export default function Home() {
               <button className="text-xs text-white/40">
                 Adjust
               </button>
-
             </div>
 
-            <div className="p-4 space-y-6">
+            <div className="p-4 space-y-5">
+              <div className="flex items-center gap-2 text-xs">
+                <Move
+                  size={14}
+                />
+                Transform
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  placeholder="X"
+                  className="bg-[#0B0E13] border border-[#282D36] rounded-lg p-2 text-xs"
+                />
+
+                <input
+                  placeholder="Y"
+                  className="bg-[#0B0E13] border border-[#282D36] rounded-lg p-2 text-xs"
+                />
+              </div>
 
               <div>
-
-                <div className="flex items-center gap-2 mb-4">
-                  <Move size={14} />
-                  <span className="text-xs">
-                    Transform
-                  </span>
+                <div className="text-[10px] text-white/40 mb-2 flex gap-2">
+                  <Maximize2
+                    size={12}
+                  />
+                  Scale
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <input
+                  defaultValue="100%"
+                  className="w-full bg-[#0B0E13] border border-[#282D36] rounded-lg p-2 text-xs"
+                />
+              </div>
 
-                  <input
-                    placeholder="X"
-                    className="bg-[#0B0E13] border border-[#282D36] rounded-lg p-2 text-xs"
+              <div>
+                <div className="text-[10px] text-white/40 mb-2 flex gap-2">
+                  <RotateCw
+                    size={12}
                   />
-
-                  <input
-                    placeholder="Y"
-                    className="bg-[#0B0E13] border border-[#282D36] rounded-lg p-2 text-xs"
-                  />
-
+                  Rotation
                 </div>
 
-                <div className="mt-4">
-
-                  <div className="flex gap-2 mb-2 text-[10px] text-white/40">
-                    <Maximize2 size={12} />
-                    Scale
-                  </div>
-
-                  <input
-                    defaultValue="100%"
-                    className="w-full bg-[#0B0E13] border border-[#282D36] rounded-lg p-2 text-xs"
-                  />
-
-                </div>
-
-                <div className="mt-4">
-
-                  <div className="flex gap-2 mb-2 text-[10px] text-white/40">
-                    <RotateCw size={12} />
-                    Rotation
-                  </div>
-
-                  <input
-                    defaultValue="0°"
-                    className="w-full bg-[#0B0E13] border border-[#282D36] rounded-lg p-2 text-xs"
-                  />
-
-                </div>
-
+                <input
+                  defaultValue="0°"
+                  className="w-full bg-[#0B0E13] border border-[#282D36] rounded-lg p-2 text-xs"
+                />
               </div>
 
               <div className="border-t border-[#222630] pt-5">
-
-                <div className="flex gap-2 mb-3 text-xs">
+                <div className="flex gap-2 text-xs mb-3">
                   <SlidersHorizontal
                     size={14}
                   />
@@ -2411,30 +2921,26 @@ export default function Home() {
                   defaultValue="100"
                   className="w-full accent-violet-500"
                 />
-
               </div>
-
             </div>
-
           </aside>
-
         </div>
 
         {/* TIMELINE */}
 
-        <section className="h-[300px] border-t border-[#222630] bg-[#0D1015] overflow-hidden">
+        <section className="h-[360px] min-h-[360px] shrink-0 flex flex-col border-t border-[#222630] bg-[#0D1015]">
+          {/* TOOLBAR */}
 
-          {/* TIMELINE TOOLBAR */}
-
-          <div className="h-11 border-b border-[#222630] px-4 flex items-center gap-2">
-
+          <div className="h-11 shrink-0 border-b border-[#222630] px-4 flex items-center gap-2">
             <button
               onClick={
                 handleSplit
               }
-              className="h-8 px-3 rounded-lg flex gap-2 items-center text-xs hover:bg-white/5"
+              className="h-8 px-3 flex gap-2 items-center text-xs rounded hover:bg-white/5"
             >
-              <Scissors size={14} />
+              <Scissors
+                size={14}
+              />
               Split
             </button>
 
@@ -2445,9 +2951,11 @@ export default function Home() {
               disabled={
                 !selectedClipId
               }
-              className="h-8 px-3 rounded-lg flex gap-2 items-center text-xs hover:bg-white/5 disabled:opacity-30"
+              className="h-8 px-3 flex gap-2 items-center text-xs rounded hover:bg-white/5 disabled:opacity-30"
             >
-              <Trash2 size={14} />
+              <Trash2
+                size={14}
+              />
               Delete
             </button>
 
@@ -2458,50 +2966,71 @@ export default function Home() {
               disabled={
                 !selectedClipId
               }
-              className="h-8 px-3 rounded-lg flex gap-2 items-center text-xs hover:bg-white/5 disabled:opacity-30"
+              className="h-8 px-3 flex gap-2 items-center text-xs rounded hover:bg-white/5 disabled:opacity-30"
             >
-              <ChevronsLeft size={14} />
+              <ChevronsLeft
+                size={14}
+              />
               Ripple
             </button>
 
-            <span className="ml-4 text-xs text-white/40 tabular-nums">
+            <div className="h-5 w-px bg-[#2A3039]" />
+
+            <Layers3
+              size={13}
+              className="text-white/40"
+            />
+
+            <span className="text-[10px] text-white/40">
+              V2 overlays V1
+            </span>
+
+            <span className="ml-4 text-xs text-white/40">
               {formatTime(
                 currentTime
               )}
             </span>
 
             <div className="ml-auto flex items-center gap-2">
-
               <button
-                onClick={
-                  zoomOut
+                onClick={() =>
+                  setZoom((z) =>
+                    Math.max(
+                      50,
+                      z - 25
+                    )
+                  )
                 }
-                className="w-7 h-7 flex items-center justify-center hover:bg-white/5 rounded-md"
               >
-                <ZoomOut size={14} />
+                <ZoomOut
+                  size={14}
+                />
               </button>
 
-              <span className="text-[10px] w-10 text-center text-white/50">
+              <span className="text-[10px] w-10 text-center">
                 {zoom}%
               </span>
 
               <button
-                onClick={
-                  zoomIn
+                onClick={() =>
+                  setZoom((z) =>
+                    Math.min(
+                      300,
+                      z + 25
+                    )
+                  )
                 }
-                className="w-7 h-7 flex items-center justify-center hover:bg-white/5 rounded-md"
               >
-                <ZoomIn size={14} />
+                <ZoomIn
+                  size={14}
+                />
               </button>
-
             </div>
-
           </div>
 
           {/* RULER */}
 
-          <div className="h-7 border-b border-[#20252E] relative">
-
+          <div className="h-7 shrink-0 relative border-b border-[#20252E]">
             {rulerMarks.map(
               (time) => (
                 <span
@@ -2519,13 +3048,11 @@ export default function Home() {
                 </span>
               )
             )}
-
           </div>
 
-          {/* TRACK AREA */}
+          {/* TRACKS */}
 
-          <div className="h-[calc(100%-72px)] overflow-x-auto overflow-y-hidden">
-
+          <div className="flex-1 min-h-0 overflow-auto">
             <div
               className="relative min-h-full"
               style={{
@@ -2535,46 +3062,53 @@ export default function Home() {
                 }px`,
               }}
             >
-
               {/* PLAYHEAD */}
 
-              {timelineClips.length >
-                0 && (
-                <div
-                  className="absolute top-0 bottom-0 z-50 pointer-events-none"
-                  style={{
-                    left: `${
-                      88 +
-                      playheadPosition
-                    }px`,
-                  }}
-                >
-                  <div className="w-px h-full bg-violet-400" />
+              <div
+                className="absolute top-0 bottom-0 z-50 pointer-events-none"
+                style={{
+                  left: `${
+                    88 +
+                    playhead
+                  }px`,
+                }}
+              >
+                <div className="w-px h-full bg-violet-400" />
 
-                  <div className="absolute -top-[3px] -left-[4px] w-2.5 h-2.5 rotate-45 bg-violet-400 rounded-sm" />
-                </div>
-              )}
+                <div className="absolute -top-[3px] -left-[4px] w-2.5 h-2.5 bg-violet-400 rotate-45 rounded-sm" />
+              </div>
 
-              {/* VIDEO TRACK */}
+              {/* V2 */}
 
-              <div className="h-[70px] flex border-b border-[#171B21]">
-
-                <div className="w-[88px] flex-shrink-0 border-r border-[#222630] bg-[#101319] flex items-center px-3">
-
-                  <span className="text-[10px]">
-                    V1
+              <div
+                className="flex border-b border-[#171B21]"
+                style={{
+                  height: `${v2Height}px`,
+                }}
+              >
+                <div className="w-[88px] shrink-0 bg-[#101319] border-r border-[#222630] flex items-center px-3">
+                  <span className="text-[10px] text-blue-300">
+                    V2
                   </span>
 
-                  <Eye
-                    size={12}
-                    className="ml-auto opacity-30"
-                  />
-
-                  <Lock
-                    size={11}
-                    className="ml-2 opacity-30"
-                  />
-
+                  <button
+                    onClick={() =>
+                      setV2Visible(
+                        (v) => !v
+                      )
+                    }
+                    className="ml-auto"
+                  >
+                    {v2Visible ? (
+                      <Eye
+                        size={12}
+                      />
+                    ) : (
+                      <EyeOff
+                        size={12}
+                      />
+                    )}
+                  </button>
                 </div>
 
                 <div
@@ -2583,209 +3117,179 @@ export default function Home() {
                   }
                   className="relative flex-1 bg-[#0B0E13]"
                 >
-
-                  {timelineClips.map(
-                    (clip) => {
-                      const left =
-                        clip.timelineStart *
-                        pixelsPerSecond;
-
-                      const width =
-                        clip.duration *
-                        pixelsPerSecond;
-
-                      const selected =
-                        selectedClipId ===
-                        clip.id;
-
-                      const frames =
-                        getFramesForClip(
-                          clip,
-                          width
-                        );
-
-                      return (
-                        <div
-                          key={clip.id}
-                          onMouseDown={(
-                            event
-                          ) =>
-                            startClipDrag(
-                              event,
-                              clip
-                            )
-                          }
-                          onClick={(
-                            event
-                          ) => {
-                            event.stopPropagation();
-
-                            setSelectedClipId(
-                              clip.id
-                            );
-
-                            previewTimelineClip(
-                              clip,
-                              clip.timelineStart,
-                              false
-                            );
-                          }}
-                          className={`absolute top-1 h-[62px] rounded-md overflow-hidden cursor-grab ${
-                            selected
-                              ? "border-2 border-violet-300"
-                              : "border border-violet-500/40"
-                          }`}
-                          style={{
-                            left: `${left}px`,
-
-                            width: `${Math.max(
-                              width,
-                              4
-                            )}px`,
-                          }}
-                        >
-
-                          {/* FRAME STRIP */}
-
-                          <div className="absolute inset-0 flex bg-[#181222]">
-
-                            {frames.map(
-                              (
-                                frame,
-                                index
-                              ) => (
-                                <img
-                                  key={
-                                    index
-                                  }
-                                  src={
-                                    frame
-                                  }
-                                  alt=""
-                                  draggable={
-                                    false
-                                  }
-                                  className="h-full min-w-0 flex-1 object-cover opacity-75"
-                                />
-                              )
-                            )}
-
-                          </div>
-
-                          {/* PURPLE TINT */}
-
-                          <div className="absolute inset-0 bg-violet-600/15" />
-
-                          {/* CLIP NAME */}
-
-                          <span className="absolute left-2 top-1 px-1 py-[2px] rounded bg-black/60 text-[9px] max-w-[70%] truncate pointer-events-none">
-                            {clip.name}
-                          </span>
-
-                          {/* LEFT TRIM */}
-
-                          <div
-                            onMouseDown={(
-                              event
-                            ) =>
-                              startTrim(
-                                event,
-                                clip,
-                                "left"
-                              )
-                            }
-                            className={`absolute left-0 top-0 bottom-0 w-[5px] cursor-ew-resize z-20 ${
-                              selected
-                                ? "bg-violet-200"
-                                : ""
-                            }`}
-                          />
-
-                          {/* RIGHT TRIM */}
-
-                          <div
-                            onMouseDown={(
-                              event
-                            ) =>
-                              startTrim(
-                                event,
-                                clip,
-                                "right"
-                              )
-                            }
-                            className={`absolute right-0 top-0 bottom-0 w-[5px] cursor-ew-resize z-20 ${
-                              selected
-                                ? "bg-violet-200"
-                                : ""
-                            }`}
-                          />
-
-                        </div>
-                      );
-                    }
+                  {renderVideoClips(
+                    "V2",
+                    v2Height
                   )}
-
                 </div>
-
               </div>
 
-              {/* AUDIO TRACK */}
+              <div
+                onMouseDown={(
+                  event
+                ) =>
+                  startTrackResize(
+                    event,
+                    "V2",
+                    v2Height
+                  )
+                }
+                className="h-[5px] ml-[88px] cursor-row-resize hover:bg-violet-500/20"
+              />
 
-              <div className="h-[64px] flex border-b border-[#171B21]">
+              {/* V1 */}
 
-                <div className="w-[88px] flex-shrink-0 border-r border-[#222630] bg-[#101319] flex items-center px-3">
+              <div
+                className="flex border-b border-[#171B21]"
+                style={{
+                  height: `${v1Height}px`,
+                }}
+              >
+                <div className="w-[88px] shrink-0 bg-[#101319] border-r border-[#222630] flex items-center px-3">
+                  <span className="text-[10px]">
+                    V1
+                  </span>
 
+                  <button
+                    onClick={() =>
+                      setV1Visible(
+                        (v) => !v
+                      )
+                    }
+                    className="ml-auto"
+                  >
+                    {v1Visible ? (
+                      <Eye
+                        size={12}
+                      />
+                    ) : (
+                      <EyeOff
+                        size={12}
+                      />
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      setTracksLocked(
+                        (v) => !v
+                      )
+                    }
+                    className="ml-2"
+                  >
+                    {tracksLocked ? (
+                      <Lock
+                        size={11}
+                      />
+                    ) : (
+                      <Unlock
+                        size={11}
+                      />
+                    )}
+                  </button>
+                </div>
+
+                <div
+                  onClick={
+                    handleTimelineClick
+                  }
+                  className="relative flex-1 bg-[#0B0E13]"
+                >
+                  {renderVideoClips(
+                    "V1",
+                    v1Height
+                  )}
+                </div>
+              </div>
+
+              <div
+                onMouseDown={(
+                  event
+                ) =>
+                  startTrackResize(
+                    event,
+                    "V1",
+                    v1Height
+                  )
+                }
+                className="h-[5px] ml-[88px] cursor-row-resize hover:bg-violet-500/20"
+              />
+
+              {/* A1 */}
+
+              <div
+                className="flex border-b border-[#171B21]"
+                style={{
+                  height: `${audioHeight}px`,
+                }}
+              >
+                <div className="w-[88px] shrink-0 bg-[#101319] border-r border-[#222630] flex items-center px-3">
                   <span className="text-[10px]">
                     A1
                   </span>
 
-                  <Volume2
-                    size={12}
-                    className="ml-auto opacity-30"
-                  />
-
-                  <Lock
-                    size={11}
-                    className="ml-2 opacity-30"
-                  />
-
+                  <button
+                    onClick={() =>
+                      setAudioMuted(
+                        (m) => !m
+                      )
+                    }
+                    className="ml-auto"
+                  >
+                    {audioMuted ? (
+                      <VolumeX
+                        size={12}
+                      />
+                    ) : (
+                      <Volume2
+                        size={12}
+                      />
+                    )}
+                  </button>
                 </div>
 
                 <div className="relative flex-1 bg-[#0B0E13]">
+                  {timelineClips
+                    .filter(
+                      (clip) =>
+                        clip.track ===
+                        "V1"
+                    )
+                    .map(
+                      (clip) => {
+                        const left =
+                          clip.timelineStart *
+                          pixelsPerSecond;
 
-                  {timelineClips.map(
-                    (clip) => {
-                      const left =
-                        clip.timelineStart *
-                        pixelsPerSecond;
+                        const width =
+                          clip.duration *
+                          pixelsPerSecond;
 
-                      const width =
-                        clip.duration *
-                        pixelsPerSecond;
+                        const waveform =
+                          getWaveform(
+                            clip,
+                            width
+                          );
 
-                      const waveform =
-                        getWaveformForClip(
-                          clip,
-                          width
-                        );
+                        return (
+                          <div
+                            key={`audio-${clip.id}`}
+                            className={`absolute top-1 bottom-1 rounded bg-violet-500/10 border ${
+                              selectedClipId ===
+                              clip.id
+                                ? "border-violet-200"
+                                : "border-violet-500/20"
+                            }`}
+                            style={{
+                              left: `${left}px`,
 
-                      return (
-                        <div
-                          key={`audio-${clip.id}`}
-                          className="absolute top-1 h-[56px] rounded-md overflow-hidden bg-violet-500/10 border border-violet-500/20"
-                          style={{
-                            left: `${left}px`,
-
-                            width: `${Math.max(
-                              width,
-                              4
-                            )}px`,
-                          }}
-                        >
-
-                          {waveform.length ? (
+                              width: `${Math.max(
+                                width,
+                                4
+                              )}px`,
+                            }}
+                          >
                             <div className="absolute inset-0 flex items-center gap-[1px] px-[2px]">
-
                               {waveform.map(
                                 (
                                   value,
@@ -2795,42 +3299,47 @@ export default function Home() {
                                     key={
                                       index
                                     }
-                                    className="flex-1 min-w-[1px] max-w-[3px] bg-violet-300/70 rounded-full"
+                                    className="flex-1 min-w-[1px] max-w-[3px] rounded-full bg-violet-300/75"
                                     style={{
                                       height: `${Math.max(
                                         3,
+
                                         value *
-                                          45
+                                          Math.max(
+                                            18,
+
+                                            audioHeight -
+                                              18
+                                          )
                                       )}px`,
                                     }}
                                   />
                                 )
                               )}
-
                             </div>
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[8px] text-white/20">
-                              Audio
-                            </div>
-                          )}
-
-                        </div>
-                      );
-                    }
-                  )}
-
+                          </div>
+                        );
+                      }
+                    )}
                 </div>
-
               </div>
 
+              <div
+                onMouseDown={(
+                  event
+                ) =>
+                  startTrackResize(
+                    event,
+                    "A1",
+                    audioHeight
+                  )
+                }
+                className="h-[5px] ml-[88px] cursor-row-resize hover:bg-violet-500/20"
+              />
             </div>
-
           </div>
-
         </section>
-
       </div>
-
     </main>
   );
 }
