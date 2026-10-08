@@ -1,21 +1,18 @@
+"use client";
+
 import {
-  Eye,
-  EyeOff,
-  Scissors,
-  Trash2,
-  Volume2,
-  VolumeX,
-  ZoomIn,
-  ZoomOut,
+  GripHorizontal,
 } from "lucide-react";
 
 import {
   TimelineClip,
 } from "@/types/editor";
 
-import {
-  formatTime,
-} from "@/utils/time";
+import TimelineToolbar from "./TimelineToolbar";
+import TimelineRuler from "./TimelineRuler";
+
+import VideoTrack from "./VideoTrack";
+import AudioTrack from "./AudioTrack";
 
 type Props = {
   clips: TimelineClip[];
@@ -36,12 +33,54 @@ type Props = {
 
   audioMuted: boolean;
 
-  setSelectedClipId:
-    (id: string | null) => void;
+  locked: boolean;
+
+  v1Height: number;
+  v2Height: number;
+  audioHeight: number;
+
+  getFrames: (
+    clip: TimelineClip,
+    width: number
+  ) => string[];
+
+  getWaveform: (
+    clip: TimelineClip,
+    width: number
+  ) => number[];
+
+  onSelectClip: (
+    clip: TimelineClip
+  ) => void;
+
+  onTimelineClick: (
+    event: React.MouseEvent<HTMLDivElement>
+  ) => void;
+
+  onDragStart: (
+    event: React.MouseEvent,
+    clip: TimelineClip
+  ) => void;
+
+  onTrimStart: (
+    event: React.MouseEvent,
+    clip: TimelineClip,
+    side: "left" | "right"
+  ) => void;
+
+  onTrackResize: (
+    event: React.MouseEvent,
+    track:
+      | "V1"
+      | "V2"
+      | "A1"
+  ) => void;
 
   onSplit: () => void;
 
   onDelete: () => void;
+
+  onRippleDelete: () => void;
 
   onZoomIn: () => void;
 
@@ -52,6 +91,8 @@ type Props = {
   onToggleV2: () => void;
 
   onToggleAudio: () => void;
+
+  onToggleLock: () => void;
 };
 
 export default function Timeline({
@@ -64,14 +105,26 @@ export default function Timeline({
   v1Visible,
   v2Visible,
   audioMuted,
-  setSelectedClipId,
+  locked,
+  v1Height,
+  v2Height,
+  audioHeight,
+  getFrames,
+  getWaveform,
+  onSelectClip,
+  onTimelineClick,
+  onDragStart,
+  onTrimStart,
+  onTrackResize,
   onSplit,
   onDelete,
+  onRippleDelete,
   onZoomIn,
   onZoomOut,
   onToggleV1,
   onToggleV2,
   onToggleAudio,
+  onToggleLock,
 }: Props) {
   const timelineWidth =
     Math.max(
@@ -84,210 +137,254 @@ export default function Timeline({
     currentTime *
     pixelsPerSecond;
 
-  const renderTrack = (
-    track: "V1" | "V2"
-  ) =>
-    clips
-      .filter(
-        (clip) =>
-          clip.track === track
-      )
-      .map((clip) => {
-        const left =
-          clip.timelineStart *
-          pixelsPerSecond;
-
-        const width =
-          clip.duration *
-          pixelsPerSecond;
-
-        const selected =
-          clip.id ===
-          selectedClipId;
-
-        return (
-          <button
-            key={clip.id}
-            onClick={() =>
-              setSelectedClipId(
-                clip.id
-              )
-            }
-            className={`absolute top-2 h-10 rounded-md px-2 text-[9px] truncate text-left ${
-              selected
-                ? "border-2 border-violet-200 bg-violet-500/40"
-                : "border border-violet-500/30 bg-violet-500/20"
-            }`}
-            style={{
-              left,
-              width:
-                Math.max(
-                  width,
-                  4
-                ),
-            }}
-          >
-            {clip.name}
-          </button>
-        );
-      });
-
   return (
-    <section className="h-[300px] min-h-[300px] shrink-0 flex flex-col border-t border-[#222630] bg-[#0D1015]">
+    <section className="h-[290px] min-h-[290px] shrink-0 border-t border-[#222630] bg-[#0D1015] overflow-hidden flex flex-col">
 
-      <div className="h-11 shrink-0 border-b border-[#222630] px-4 flex items-center gap-2">
+      <TimelineToolbar
+        selectedClipId={
+          selectedClipId
+        }
+        currentTime={
+          currentTime
+        }
+        zoom={zoom}
+        locked={locked}
+        onSplit={onSplit}
+        onDelete={onDelete}
+        onRippleDelete={
+          onRippleDelete
+        }
+        onZoomIn={onZoomIn}
+        onZoomOut={onZoomOut}
+      />
 
-        <button
-          onClick={onSplit}
-          className="h-8 px-3 flex gap-2 items-center text-xs rounded hover:bg-white/5"
-        >
-          <Scissors size={14} />
-          Split
-        </button>
+      <TimelineRuler
+        projectDuration={
+          projectDuration
+        }
+        pixelsPerSecond={
+          pixelsPerSecond
+        }
+      />
 
-        <button
-          onClick={onDelete}
-          disabled={!selectedClipId}
-          className="h-8 px-3 flex gap-2 items-center text-xs rounded hover:bg-white/5 disabled:opacity-30"
-        >
-          <Trash2 size={14} />
-          Delete
-        </button>
-
-        <span className="ml-4 text-xs text-white/40">
-          {formatTime(
-            currentTime
-          )}
-        </span>
-
-        <div className="ml-auto flex items-center gap-2">
-
-          <button onClick={onZoomOut}>
-            <ZoomOut size={14} />
-          </button>
-
-          <span className="w-10 text-center text-[10px]">
-            {zoom}%
-          </span>
-
-          <button onClick={onZoomIn}>
-            <ZoomIn size={14} />
-          </button>
-
-        </div>
-
-      </div>
-
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto">
 
         <div
-          className="relative"
+          className="relative min-h-full"
           style={{
-            width:
-              timelineWidth +
-              88,
+            width: `${
+              timelineWidth + 88
+            }px`,
           }}
         >
+          {/* PLAYHEAD */}
 
           <div
-            className="absolute top-0 bottom-0 z-40 pointer-events-none"
+            className="absolute top-0 bottom-0 z-50 pointer-events-none"
             style={{
-              left:
-                88 + playhead,
+              left: `${
+                88 + playhead
+              }px`,
             }}
           >
             <div className="w-px h-full bg-violet-400" />
+
+            <div className="absolute -top-[3px] -left-[4px] w-2.5 h-2.5 bg-violet-400 rotate-45 rounded-sm" />
           </div>
 
           {/* V2 */}
 
-          <div className="h-16 flex border-b border-[#171B21]">
+          <VideoTrack
+            track="V2"
+            clips={clips}
+            trackHeight={
+              v2Height
+            }
+            pixelsPerSecond={
+              pixelsPerSecond
+            }
+            selectedClipId={
+              selectedClipId
+            }
+            visible={
+              v2Visible
+            }
+            locked={locked}
+            getFrames={
+              getFrames
+            }
+            onToggleVisibility={
+              onToggleV2
+            }
+            onToggleLock={
+              onToggleLock
+            }
+            onTimelineClick={
+              onTimelineClick
+            }
+            onSelectClip={
+              onSelectClip
+            }
+            onDragStart={
+              onDragStart
+            }
+            onTrimStart={
+              onTrimStart
+            }
+          />
 
-            <div className="w-[88px] shrink-0 border-r border-[#222630] px-3 flex items-center">
+          {/* V2 RESIZER */}
 
-              <span className="text-[10px]">
-                V2
-              </span>
-
-              <button
-                onClick={onToggleV2}
-                className="ml-auto"
-              >
-                {v2Visible ? (
-                  <Eye size={12} />
-                ) : (
-                  <EyeOff size={12} />
-                )}
-              </button>
-
-            </div>
-
-            <div className="relative flex-1 bg-[#0B0E13]">
-              {renderTrack("V2")}
-            </div>
-
-          </div>
+          <TrackResizer
+            onMouseDown={(
+              event
+            ) =>
+              onTrackResize(
+                event,
+                "V2"
+              )
+            }
+          />
 
           {/* V1 */}
 
-          <div className="h-16 flex border-b border-[#171B21]">
+          <VideoTrack
+            track="V1"
+            clips={clips}
+            trackHeight={
+              v1Height
+            }
+            pixelsPerSecond={
+              pixelsPerSecond
+            }
+            selectedClipId={
+              selectedClipId
+            }
+            visible={
+              v1Visible
+            }
+            locked={locked}
+            getFrames={
+              getFrames
+            }
+            onToggleVisibility={
+              onToggleV1
+            }
+            onToggleLock={
+              onToggleLock
+            }
+            onTimelineClick={
+              onTimelineClick
+            }
+            onSelectClip={
+              onSelectClip
+            }
+            onDragStart={
+              onDragStart
+            }
+            onTrimStart={
+              onTrimStart
+            }
+          />
 
-            <div className="w-[88px] shrink-0 border-r border-[#222630] px-3 flex items-center">
+          {/* V1 RESIZER */}
 
-              <span className="text-[10px]">
-                V1
-              </span>
+          <TrackResizer
+            onMouseDown={(
+              event
+            ) =>
+              onTrackResize(
+                event,
+                "V1"
+              )
+            }
+          />
 
-              <button
-                onClick={onToggleV1}
-                className="ml-auto"
-              >
-                {v1Visible ? (
-                  <Eye size={12} />
-                ) : (
-                  <EyeOff size={12} />
-                )}
-              </button>
+          {/* AUDIO */}
 
-            </div>
+          <AudioTrack
+            clips={clips}
+            trackHeight={
+              audioHeight
+            }
+            pixelsPerSecond={
+              pixelsPerSecond
+            }
+            selectedClipId={
+              selectedClipId
+            }
+            muted={
+              audioMuted
+            }
+            locked={
+              locked
+            }
+            getWaveform={
+              getWaveform
+            }
+            onToggleMute={
+              onToggleAudio
+            }
+            onToggleLock={
+              onToggleLock
+            }
+            onSelectClip={
+              onSelectClip
+            }
+            onDragStart={
+              onDragStart
+            }
+            onTrimStart={
+              onTrimStart
+            }
+          />
 
-            <div className="relative flex-1 bg-[#0B0E13]">
-              {renderTrack("V1")}
-            </div>
+          {/* AUDIO RESIZER */}
 
-          </div>
-
-          {/* A1 */}
-
-          <div className="h-14 flex">
-
-            <div className="w-[88px] shrink-0 border-r border-[#222630] px-3 flex items-center">
-
-              <span className="text-[10px]">
-                A1
-              </span>
-
-              <button
-                onClick={onToggleAudio}
-                className="ml-auto"
-              >
-                {audioMuted ? (
-                  <VolumeX size={12} />
-                ) : (
-                  <Volume2 size={12} />
-                )}
-              </button>
-
-            </div>
-
-            <div className="flex-1 bg-[#0B0E13]" />
-
-          </div>
+          <TrackResizer
+            onMouseDown={(
+              event
+            ) =>
+              onTrackResize(
+                event,
+                "A1"
+              )
+            }
+          />
 
         </div>
 
       </div>
 
     </section>
+  );
+}
+
+function TrackResizer({
+  onMouseDown,
+}: {
+  onMouseDown:
+    (
+      event: React.MouseEvent
+    ) => void;
+}) {
+  return (
+    <div className="h-[6px] flex bg-[#11151B]">
+
+      <div className="w-[88px] shrink-0 border-r border-[#222630] bg-[#101319]" />
+
+      <div
+        onMouseDown={
+          onMouseDown
+        }
+        className="flex-1 cursor-row-resize hover:bg-violet-500/15 transition flex items-center justify-center"
+      >
+        <GripHorizontal
+          size={12}
+          className="text-white/15"
+        />
+      </div>
+
+    </div>
   );
 }
