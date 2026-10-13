@@ -10,6 +10,14 @@ export type MediaItem = {
   waveform: number[];
 };
 
+export type ClipTransform = {
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  opacity: number;
+};
+
 export type TimelineClip = {
   id: string;
 
@@ -22,6 +30,8 @@ export type TimelineClip = {
   timelineStart: number;
   sourceStart: number;
   duration: number;
+
+  transform: ClipTransform;
 };
 
 export type DragState = {
@@ -32,6 +42,7 @@ export type DragState = {
 
 export type TrimState = {
   clipId: string;
+
   side: "left" | "right";
 
   startMouseX: number;

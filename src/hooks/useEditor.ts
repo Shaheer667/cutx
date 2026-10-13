@@ -42,92 +42,180 @@ import {
 } from "@/engine/media";
 
 export function useEditor() {
+  /* ---------------------------------------
+     REFS
+  --------------------------------------- */
+
   const fileInputRef =
-    useRef<HTMLInputElement | null>(null);
+    useRef<HTMLInputElement | null>(
+      null
+    );
 
   const v1VideoRef =
-    useRef<HTMLVideoElement | null>(null);
+    useRef<HTMLVideoElement | null>(
+      null
+    );
 
   const v2VideoRef =
-    useRef<HTMLVideoElement | null>(null);
+    useRef<HTMLVideoElement | null>(
+      null
+    );
 
   const timelineClipsRef =
-    useRef<TimelineClip[]>([]);
+    useRef<TimelineClip[]>(
+      []
+    );
 
   const activeV1ClipIdRef =
-    useRef<string | null>(null);
+    useRef<string | null>(
+      null
+    );
 
   const activeV2ClipIdRef =
-    useRef<string | null>(null);
+    useRef<string | null>(
+      null
+    );
 
   const shouldAutoPlayRef =
     useRef(false);
 
   const dragStateRef =
-    useRef<DragState | null>(null);
+    useRef<DragState | null>(
+      null
+    );
 
   const trimStateRef =
-    useRef<TrimState | null>(null);
+    useRef<TrimState | null>(
+      null
+    );
 
   const resizeStateRef =
-    useRef<TrackResizeState | null>(null);
+    useRef<TrackResizeState | null>(
+      null
+    );
 
   const operationSnapshotRef =
-    useRef<TimelineClip[] | null>(null);
+    useRef<TimelineClip[] | null>(
+      null
+    );
 
-  const [mediaItems, setMediaItems] =
-    useState<MediaItem[]>([]);
+  /* ---------------------------------------
+     STATE
+  --------------------------------------- */
 
-  const [timelineClips, setTimelineClips] =
-    useState<TimelineClip[]>([]);
+  const [
+    mediaItems,
+    setMediaItems,
+  ] = useState<MediaItem[]>(
+    []
+  );
 
-  const [selectedClipId, setSelectedClipId] =
-    useState<string | null>(null);
+  const [
+    timelineClips,
+    setTimelineClips,
+  ] = useState<
+    TimelineClip[]
+  >([]);
 
-  const [currentTime, setCurrentTime] =
-    useState(0);
+  const [
+    selectedClipId,
+    setSelectedClipId,
+  ] = useState<
+    string | null
+  >(null);
 
-  const [isPlaying, setIsPlaying] =
-    useState(false);
+  const [
+    currentTime,
+    setCurrentTime,
+  ] = useState(0);
 
-  const [isImporting, setIsImporting] =
-    useState(false);
+  const [
+    isPlaying,
+    setIsPlaying,
+  ] = useState(false);
 
-  const [zoom, setZoom] =
-    useState(100);
+  const [
+    isImporting,
+    setIsImporting,
+  ] = useState(false);
 
-  const [past, setPast] =
-    useState<TimelineClip[][]>([]);
+  const [
+    zoom,
+    setZoom,
+  ] = useState(100);
 
-  const [future, setFuture] =
-    useState<TimelineClip[][]>([]);
+  const [
+    past,
+    setPast,
+  ] = useState<
+    TimelineClip[][]
+  >([]);
 
-  const [activeV1Media, setActiveV1Media] =
-    useState<MediaItem | null>(null);
+  const [
+    future,
+    setFuture,
+  ] = useState<
+    TimelineClip[][]
+  >([]);
 
-  const [activeV2Media, setActiveV2Media] =
-    useState<MediaItem | null>(null);
+  const [
+    activeV1Media,
+    setActiveV1Media,
+  ] = useState<
+    MediaItem | null
+  >(null);
 
-  const [v1Visible, setV1Visible] =
-    useState(true);
+  const [
+    activeV2Media,
+    setActiveV2Media,
+  ] = useState<
+    MediaItem | null
+  >(null);
 
-  const [v2Visible, setV2Visible] =
-    useState(true);
+  const [
+    v1Visible,
+    setV1Visible,
+  ] = useState(true);
 
-  const [audioMuted, setAudioMuted] =
-    useState(false);
+  const [
+    v2Visible,
+    setV2Visible,
+  ] = useState(true);
 
-  const [tracksLocked, setTracksLocked] =
-    useState(false);
+  const [
+    audioMuted,
+    setAudioMuted,
+  ] = useState(false);
 
-  const [v1Height, setV1Height] =
-    useState(DEFAULT_V1_HEIGHT);
+  const [
+    tracksLocked,
+    setTracksLocked,
+  ] = useState(false);
 
-  const [v2Height, setV2Height] =
-    useState(DEFAULT_V2_HEIGHT);
+  const [
+    v1Height,
+    setV1Height,
+  ] = useState(
+    DEFAULT_V1_HEIGHT
+  );
 
-  const [audioHeight, setAudioHeight] =
-    useState(DEFAULT_AUDIO_HEIGHT);
+  const [
+    v2Height,
+    setV2Height,
+  ] = useState(
+    DEFAULT_V2_HEIGHT
+  );
+
+  const [
+    audioHeight,
+    setAudioHeight,
+  ] = useState(
+    DEFAULT_AUDIO_HEIGHT
+  );
+
+  /* ---------------------------------------
+     KEEP REF UPDATED
+  --------------------------------------- */
 
   useEffect(() => {
     timelineClipsRef.current =
@@ -135,11 +223,20 @@ export function useEditor() {
   }, [timelineClips]);
 
   useEffect(() => {
-    if (v1VideoRef.current) {
+    if (
+      v1VideoRef.current
+    ) {
       v1VideoRef.current.muted =
         audioMuted;
     }
-  }, [audioMuted, activeV1Media]);
+  }, [
+    audioMuted,
+    activeV1Media,
+  ]);
+
+  /* ---------------------------------------
+     DERIVED
+  --------------------------------------- */
 
   const projectDuration =
     getProjectDuration(
@@ -150,12 +247,38 @@ export function useEditor() {
     BASE_PIXELS_PER_SECOND *
     (zoom / 100);
 
+  const selectedClip =
+    timelineClips.find(
+      (clip) =>
+        clip.id ===
+        selectedClipId
+    ) ?? null;
+
+  const activeV1Clip =
+    getClipAtTime(
+      timelineClips,
+      currentTime,
+      "V1"
+    ) ?? null;
+
+  const activeV2Clip =
+    getClipAtTime(
+      timelineClips,
+      currentTime,
+      "V2"
+    ) ?? null;
+
+  /* ---------------------------------------
+     HELPERS
+  --------------------------------------- */
+
   const getMediaById = (
     mediaId: string
   ) =>
     mediaItems.find(
       (item) =>
-        item.id === mediaId
+        item.id ===
+        mediaId
     );
 
   const getNextClipOnTrack = (
@@ -163,11 +286,15 @@ export function useEditor() {
     time: number,
     excludedId?: string
   ) =>
-    [...timelineClipsRef.current]
+    [
+      ...timelineClipsRef.current,
+    ]
       .filter(
         (clip) =>
-          clip.track === track &&
-          clip.id !== excludedId &&
+          clip.track ===
+            track &&
+          clip.id !==
+            excludedId &&
           clip.timelineStart >=
             time - 0.02
       )
@@ -176,6 +303,17 @@ export function useEditor() {
           a.timelineStart -
           b.timelineStart
       )[0];
+
+  const pauseAll = () => {
+    v1VideoRef.current?.pause();
+
+    v2VideoRef.current?.pause();
+
+    shouldAutoPlayRef.current =
+      false;
+
+    setIsPlaying(false);
+  };
 
   /* ---------------------------------------
      HISTORY
@@ -192,58 +330,71 @@ export function useEditor() {
 
     setPast((prev) => [
       ...prev.slice(
-        -(MAX_HISTORY - 1)
+        -(
+          MAX_HISTORY -
+          1
+        )
       ),
-      cloneClips(state),
+
+      cloneClips(
+        state
+      ),
     ]);
 
     setFuture([]);
   };
 
-  const pauseAll = () => {
-    v1VideoRef.current?.pause();
-    v2VideoRef.current?.pause();
-
-    shouldAutoPlayRef.current =
-      false;
-
-    setIsPlaying(false);
-  };
-
   const undo = () => {
-    if (!past.length) return;
+    if (!past.length) {
+      return;
+    }
 
     const previous =
-      past[past.length - 1];
+      past[
+        past.length - 1
+      ];
 
-    setFuture((prev) => [
-      cloneClips(
-        timelineClipsRef.current
-      ),
-      ...prev,
-    ]);
+    setFuture(
+      (prev) => [
+        cloneClips(
+          timelineClipsRef.current
+        ),
+
+        ...prev,
+      ]
+    );
 
     setPast((prev) =>
-      prev.slice(0, -1)
+      prev.slice(
+        0,
+        -1
+      )
     );
 
     setTimelineClips(
-      cloneClips(previous)
+      cloneClips(
+        previous
+      )
     );
 
-    setSelectedClipId(null);
+    setSelectedClipId(
+      null
+    );
 
     pauseAll();
   };
 
   const redo = () => {
-    if (!future.length) return;
+    if (!future.length) {
+      return;
+    }
 
     const next =
       future[0];
 
     setPast((prev) => [
       ...prev,
+
       cloneClips(
         timelineClipsRef.current
       ),
@@ -257,7 +408,9 @@ export function useEditor() {
       cloneClips(next)
     );
 
-    setSelectedClipId(null);
+    setSelectedClipId(
+      null
+    );
 
     pauseAll();
   };
@@ -273,22 +426,34 @@ export function useEditor() {
       const files =
         event.target.files;
 
-      if (!files?.length) return;
+      if (!files?.length) {
+        return;
+      }
 
       const videoFiles =
-        Array.from(files).filter(
+        Array.from(
+          files
+        ).filter(
           (file) =>
             file.type.startsWith(
               "video/"
             )
         );
 
-      if (!videoFiles.length) return;
+      if (
+        !videoFiles.length
+      ) {
+        return;
+      }
 
-      setIsImporting(true);
+      setIsImporting(
+        true
+      );
 
       try {
-        for (const file of videoFiles) {
+        for (
+          const file of videoFiles
+        ) {
           try {
             const media =
               await processMediaFile(
@@ -298,10 +463,13 @@ export function useEditor() {
             setMediaItems(
               (prev) => [
                 ...prev,
+
                 media,
               ]
             );
-          } catch (error) {
+          } catch (
+            error
+          ) {
             console.error(
               "Import failed:",
               error
@@ -309,10 +477,13 @@ export function useEditor() {
           }
         }
       } finally {
-        setIsImporting(false);
+        setIsImporting(
+          false
+        );
       }
 
-      event.target.value = "";
+      event.target.value =
+        "";
     };
 
   /* ---------------------------------------
@@ -333,20 +504,46 @@ export function useEditor() {
           )
         : currentTime;
 
-    const clip: TimelineClip = {
-      id: crypto.randomUUID(),
-      mediaId: media.id,
-      name: media.name,
-      sourceUrl: media.url,
-      track,
-      timelineStart,
-      sourceStart: 0,
-      duration: media.duration,
-    };
+    const clip: TimelineClip =
+      {
+        id:
+          crypto.randomUUID(),
+
+        mediaId:
+          media.id,
+
+        name:
+          media.name,
+
+        sourceUrl:
+          media.url,
+
+        track,
+
+        timelineStart,
+
+        sourceStart: 0,
+
+        duration:
+          media.duration,
+
+        transform: {
+          x: 0,
+
+          y: 0,
+
+          scale: 100,
+
+          rotation: 0,
+
+          opacity: 100,
+        },
+      };
 
     setTimelineClips(
       (prev) => [
         ...prev,
+
         clip,
       ]
     );
@@ -355,7 +552,9 @@ export function useEditor() {
       clip.id
     );
 
-    if (track === "V1") {
+    if (
+      track === "V1"
+    ) {
       activeV1ClipIdRef.current =
         clip.id;
 
@@ -373,176 +572,205 @@ export function useEditor() {
   };
 
   /* ---------------------------------------
-     PREVIEW / SEEK HELPERS
+     V2 SYNC
   --------------------------------------- */
 
-  const syncV2ToTime = async (
-    timelineTime: number,
-    autoplay: boolean
-  ) => {
-    const clip =
-      getClipAtTime(
-        timelineClipsRef.current,
-        timelineTime,
-        "V2"
-      );
+  const syncV2ToTime =
+    async (
+      timelineTime: number,
+      autoplay: boolean
+    ) => {
+      const clip =
+        getClipAtTime(
+          timelineClipsRef.current,
 
-    if (!clip || !v2Visible) {
-      activeV2ClipIdRef.current =
-        null;
-
-      v2VideoRef.current?.pause();
-
-      if (!clip) {
-        setActiveV2Media(null);
-      }
-
-      return;
-    }
-
-    const media =
-      getMediaById(
-        clip.mediaId
-      );
-
-    if (!media) return;
-
-    activeV2ClipIdRef.current =
-      clip.id;
-
-    const targetSourceTime =
-      clip.sourceStart +
-      Math.max(
-        0,
-        timelineTime -
-          clip.timelineStart
-      );
-
-    if (
-      activeV2Media?.id !==
-      media.id
-    ) {
-      setActiveV2Media(
-        media
-      );
-
-      return;
-    }
-
-    const video =
-      v2VideoRef.current;
-
-    if (!video) return;
-
-    video.muted = true;
-
-    if (
-      Math.abs(
-        video.currentTime -
-          targetSourceTime
-      ) > 0.12
-    ) {
-      video.currentTime =
-        targetSourceTime;
-    }
-
-    if (
-      autoplay &&
-      video.paused
-    ) {
-      try {
-        await video.play();
-      } catch {}
-    }
-  };
-
-  const seekTimeline = async (
-    timelineTime: number,
-    autoplay = false
-  ) => {
-    const safeTime =
-      Math.max(
-        0,
-        Math.min(
           timelineTime,
-          projectDuration
-        )
-      );
 
-    setCurrentTime(
-      safeTime
-    );
-
-    shouldAutoPlayRef.current =
-      autoplay;
-
-    const v1Clip =
-      getClipAtTime(
-        timelineClipsRef.current,
-        safeTime,
-        "V1"
-      );
-
-    if (v1Clip) {
-      const media =
-        getMediaById(
-          v1Clip.mediaId
+          "V2"
         );
 
-      if (media) {
-        activeV1ClipIdRef.current =
-          v1Clip.id;
+      if (
+        !clip ||
+        !v2Visible
+      ) {
+        activeV2ClipIdRef.current =
+          null;
 
-        const targetSourceTime =
-          v1Clip.sourceStart +
-          Math.max(
-            0,
-            safeTime -
-              v1Clip.timelineStart
+        v2VideoRef.current?.pause();
+
+        if (!clip) {
+          setActiveV2Media(
+            null
+          );
+        }
+
+        return;
+      }
+
+      const media =
+        getMediaById(
+          clip.mediaId
+        );
+
+      if (!media) {
+        return;
+      }
+
+      activeV2ClipIdRef.current =
+        clip.id;
+
+      const targetSourceTime =
+        clip.sourceStart +
+        Math.max(
+          0,
+
+          timelineTime -
+            clip.timelineStart
+        );
+
+      if (
+        activeV2Media?.id !==
+        media.id
+      ) {
+        setActiveV2Media(
+          media
+        );
+
+        return;
+      }
+
+      const video =
+        v2VideoRef.current;
+
+      if (!video) {
+        return;
+      }
+
+      video.muted = true;
+
+      if (
+        Math.abs(
+          video.currentTime -
+            targetSourceTime
+        ) > 0.12
+      ) {
+        video.currentTime =
+          targetSourceTime;
+      }
+
+      if (
+        autoplay &&
+        video.paused
+      ) {
+        try {
+          await video.play();
+        } catch {}
+      }
+    };
+
+  /* ---------------------------------------
+     SEEK TIMELINE
+  --------------------------------------- */
+
+  const seekTimeline =
+    async (
+      timelineTime: number,
+      autoplay = false
+    ) => {
+      const safeTime =
+        Math.max(
+          0,
+
+          Math.min(
+            timelineTime,
+
+            projectDuration
+          )
+        );
+
+      setCurrentTime(
+        safeTime
+      );
+
+      shouldAutoPlayRef.current =
+        autoplay;
+
+      const v1Clip =
+        getClipAtTime(
+          timelineClipsRef.current,
+
+          safeTime,
+
+          "V1"
+        );
+
+      if (v1Clip) {
+        const media =
+          getMediaById(
+            v1Clip.mediaId
           );
 
-        if (
-          activeV1Media?.id !==
-          media.id
-        ) {
-          setActiveV1Media(
-            media
-          );
-        } else {
-          const video =
-            v1VideoRef.current;
+        if (media) {
+          activeV1ClipIdRef.current =
+            v1Clip.id;
 
-          if (video) {
-            video.currentTime =
-              targetSourceTime;
+          const targetSourceTime =
+            v1Clip.sourceStart +
+            Math.max(
+              0,
 
-            video.muted =
-              audioMuted;
+              safeTime -
+                v1Clip.timelineStart
+            );
 
-            if (autoplay) {
-              try {
-                await video.play();
-              } catch {}
+          if (
+            activeV1Media?.id !==
+            media.id
+          ) {
+            setActiveV1Media(
+              media
+            );
+          } else {
+            const video =
+              v1VideoRef.current;
+
+            if (video) {
+              video.currentTime =
+                targetSourceTime;
+
+              video.muted =
+                audioMuted;
+
+              if (
+                autoplay
+              ) {
+                try {
+                  await video.play();
+                } catch {}
+              }
             }
           }
         }
+      } else {
+        activeV1ClipIdRef.current =
+          null;
+
+        v1VideoRef.current?.pause();
+
+        setActiveV1Media(
+          null
+        );
       }
-    } else {
-      activeV1ClipIdRef.current =
-        null;
 
-      v1VideoRef.current?.pause();
-      setActiveV1Media(null);
-    }
+      await syncV2ToTime(
+        safeTime,
 
-    await syncV2ToTime(
-      safeTime,
-      autoplay
-    );
-  };
+        autoplay
+      );
+    };
 
   /* ---------------------------------------
-     SELECT
+     SELECT CLIP
   --------------------------------------- */
 
   const selectClip = (
@@ -554,8 +782,9 @@ export function useEditor() {
       clip.id
     );
 
-    seekTimeline(
+    void seekTimeline(
       clip.timelineStart,
+
       false
     );
   };
@@ -581,24 +810,28 @@ export function useEditor() {
       null
     );
 
-    seekTimeline(
+    void seekTimeline(
       time,
+
       false
     );
   };
 
   /* ---------------------------------------
-     PLAY / PAUSE
+     PLAY
   --------------------------------------- */
 
   const togglePlay =
     async () => {
-      if (!timelineClipsRef.current.length) {
+      if (
+        !timelineClipsRef.current.length
+      ) {
         return;
       }
 
       if (isPlaying) {
         pauseAll();
+
         return;
       }
 
@@ -615,7 +848,9 @@ export function useEditor() {
       let clip =
         getClipAtTime(
           timelineClipsRef.current,
+
           startTime,
+
           "V1"
         );
 
@@ -623,11 +858,14 @@ export function useEditor() {
         clip =
           getNextClipOnTrack(
             "V1",
+
             startTime
           );
       }
 
-      if (!clip) return;
+      if (!clip) {
+        return;
+      }
 
       if (
         startTime <
@@ -640,147 +878,32 @@ export function useEditor() {
           clip.timelineStart;
       }
 
-      setIsPlaying(true);
-
       shouldAutoPlayRef.current =
         true;
 
+      setIsPlaying(
+        true
+      );
+
       await seekTimeline(
         startTime,
+
         true
       );
     };
 
   /* ---------------------------------------
-     V1 PLAYHEAD SYNC
+     PLAYHEAD UPDATE
   --------------------------------------- */
 
-  const handleV1TimeUpdate = () => {
-    const video =
-      v1VideoRef.current;
-
-    if (!video) return;
-
-    let clip =
-      timelineClipsRef.current.find(
-        (item) =>
-          item.id ===
-          activeV1ClipIdRef.current
-      );
-
-    if (!clip) {
-      clip =
-        getClipAtTime(
-          timelineClipsRef.current,
-          currentTime,
-          "V1"
-        );
-    }
-
-    if (!clip) return;
-
-    const offset =
-      video.currentTime -
-      clip.sourceStart;
-
-    const timelineTime =
-      clip.timelineStart +
-      Math.max(
-        0,
-        offset
-      );
-
-    const clipEnd =
-      clip.timelineStart +
-      clip.duration;
-
-    if (
-      timelineTime <
-      clipEnd - 0.04
-    ) {
-      setCurrentTime(
-        Math.min(
-          clipEnd,
-          timelineTime
-        )
-      );
-
-      void syncV2ToTime(
-        timelineTime,
-        isPlaying
-      );
-
-      return;
-    }
-
-    const nextClip =
-      getNextClipOnTrack(
-        "V1",
-        clipEnd,
-        clip.id
-      );
-
-    if (!nextClip) {
-      pauseAll();
-
-      setCurrentTime(
-        clipEnd
-      );
-
-      return;
-    }
-
-    const nextMedia =
-      getMediaById(
-        nextClip.mediaId
-      );
-
-    if (!nextMedia) {
-      pauseAll();
-      return;
-    }
-
-    setCurrentTime(
-      nextClip.timelineStart
-    );
-
-    activeV1ClipIdRef.current =
-      nextClip.id;
-
-    shouldAutoPlayRef.current =
-      true;
-
-    if (
-      activeV1Media?.id !==
-      nextMedia.id
-    ) {
-      setActiveV1Media(
-        nextMedia
-      );
-    } else {
-      const nextSourceTime =
-        nextClip.sourceStart;
-
-      video.currentTime =
-        nextSourceTime;
-
-      if (video.paused) {
-        void video.play();
-      }
-    }
-
-    void syncV2ToTime(
-      nextClip.timelineStart,
-      true
-    );
-  };
-
-  const handleV1LoadedMetadata =
-    async () => {
+  const handleV1TimeUpdate =
+    () => {
       const video =
         v1VideoRef.current;
 
-      if (!video) return;
+      if (!video) {
+        return;
+      }
 
       let clip =
         timelineClipsRef.current.find(
@@ -793,17 +916,175 @@ export function useEditor() {
         clip =
           getClipAtTime(
             timelineClipsRef.current,
+
             currentTime,
+
             "V1"
           );
       }
 
-      if (!clip) return;
+      if (!clip) {
+        return;
+      }
+
+      const offset =
+        video.currentTime -
+        clip.sourceStart;
+
+      const timelineTime =
+        clip.timelineStart +
+        Math.max(
+          0,
+          offset
+        );
+
+      const clipEnd =
+        clip.timelineStart +
+        clip.duration;
+
+      /*
+        Still inside this clip
+      */
+
+      if (
+        timelineTime <
+        clipEnd - 0.04
+      ) {
+        setCurrentTime(
+          Math.min(
+            clipEnd,
+
+            timelineTime
+          )
+        );
+
+        void syncV2ToTime(
+          timelineTime,
+
+          isPlaying
+        );
+
+        return;
+      }
+
+      /*
+        Current V1 clip finished.
+      */
+
+      const nextClip =
+        getNextClipOnTrack(
+          "V1",
+
+          clipEnd,
+
+          clip.id
+        );
+
+      if (!nextClip) {
+        pauseAll();
+
+        setCurrentTime(
+          clipEnd
+        );
+
+        return;
+      }
+
+      const nextMedia =
+        getMediaById(
+          nextClip.mediaId
+        );
+
+      if (!nextMedia) {
+        pauseAll();
+
+        return;
+      }
+
+      setCurrentTime(
+        nextClip.timelineStart
+      );
+
+      activeV1ClipIdRef.current =
+        nextClip.id;
+
+      shouldAutoPlayRef.current =
+        true;
+
+      /*
+        New file source.
+      */
+
+      if (
+        activeV1Media?.id !==
+        nextMedia.id
+      ) {
+        setActiveV1Media(
+          nextMedia
+        );
+      } else {
+        /*
+          Same original source,
+          just another edit segment.
+        */
+
+        video.currentTime =
+          nextClip.sourceStart;
+
+        if (
+          video.paused
+        ) {
+          void video.play();
+        }
+      }
+
+      void syncV2ToTime(
+        nextClip.timelineStart,
+
+        true
+      );
+    };
+
+  /* ---------------------------------------
+     VIDEO SOURCE LOADED
+  --------------------------------------- */
+
+  const handleV1LoadedMetadata =
+    async () => {
+      const video =
+        v1VideoRef.current;
+
+      if (!video) {
+        return;
+      }
+
+      let clip =
+        timelineClipsRef.current.find(
+          (item) =>
+            item.id ===
+            activeV1ClipIdRef.current
+        );
+
+      if (!clip) {
+        clip =
+          getClipAtTime(
+            timelineClipsRef.current,
+
+            currentTime,
+
+            "V1"
+          );
+      }
+
+      if (!clip) {
+        return;
+      }
 
       const sourceTime =
         clip.sourceStart +
         Math.max(
           0,
+
           currentTime -
             clip.timelineStart
         );
@@ -829,7 +1110,9 @@ export function useEditor() {
       const video =
         v2VideoRef.current;
 
-      if (!video) return;
+      if (!video) {
+        return;
+      }
 
       let clip =
         timelineClipsRef.current.find(
@@ -842,26 +1125,34 @@ export function useEditor() {
         clip =
           getClipAtTime(
             timelineClipsRef.current,
+
             currentTime,
+
             "V2"
           );
       }
 
-      if (!clip) return;
+      if (!clip) {
+        return;
+      }
 
-      video.muted = true;
+      video.muted =
+        true;
 
       video.currentTime =
         clip.sourceStart +
         Math.max(
           0,
+
           currentTime -
             clip.timelineStart
         );
 
       if (
-        (shouldAutoPlayRef.current ||
-          isPlaying) &&
+        (
+          shouldAutoPlayRef.current ||
+          isPlaying
+        ) &&
         v2Visible
       ) {
         try {
@@ -871,12 +1162,89 @@ export function useEditor() {
     };
 
   /* ---------------------------------------
+     TRANSFORM
+  --------------------------------------- */
+
+  const updateSelectedClipTransform = (
+    patch: Partial<
+      TimelineClip["transform"]
+    >
+  ) => {
+    if (
+      !selectedClipId ||
+      tracksLocked
+    ) {
+      return;
+    }
+
+    pushHistory();
+
+    setTimelineClips(
+      (prev) =>
+        prev.map(
+          (clip) =>
+            clip.id ===
+            selectedClipId
+              ? {
+                  ...clip,
+
+                  transform: {
+                    ...clip.transform,
+
+                    ...patch,
+                  },
+                }
+              : clip
+        )
+    );
+  };
+
+  const resetSelectedClipTransform =
+    () => {
+      if (
+        !selectedClipId ||
+        tracksLocked
+      ) {
+        return;
+      }
+
+      pushHistory();
+
+      setTimelineClips(
+        (prev) =>
+          prev.map(
+            (clip) =>
+              clip.id ===
+              selectedClipId
+                ? {
+                    ...clip,
+
+                    transform: {
+                      x: 0,
+
+                      y: 0,
+
+                      scale: 100,
+
+                      rotation: 0,
+
+                      opacity: 100,
+                    },
+                  }
+                : clip
+          )
+      );
+    };
+
+  /* ---------------------------------------
      SPLIT
   --------------------------------------- */
 
   const splitAtPlayhead =
     () => {
-      if (tracksLocked) {
+      if (
+        tracksLocked
+      ) {
         return;
       }
 
@@ -889,6 +1257,11 @@ export function useEditor() {
             )
           : undefined;
 
+      /*
+        Selected clip doesn't contain
+        the playhead -> choose top active clip.
+      */
+
       if (
         !clip ||
         currentTime <=
@@ -900,17 +1273,23 @@ export function useEditor() {
         clip =
           getClipAtTime(
             timelineClipsRef.current,
+
             currentTime,
+
             "V2"
           ) ??
           getClipAtTime(
             timelineClipsRef.current,
+
             currentTime,
+
             "V1"
           );
       }
 
-      if (!clip) return;
+      if (!clip) {
+        return;
+      }
 
       const leftDuration =
         currentTime -
@@ -931,31 +1310,45 @@ export function useEditor() {
 
       pushHistory();
 
-      const left: TimelineClip = {
-        ...clip,
-        id: crypto.randomUUID(),
-        duration:
-          leftDuration,
-      };
+      const left: TimelineClip =
+        {
+          ...clip,
 
-      const right: TimelineClip = {
-        ...clip,
-        id: crypto.randomUUID(),
-        timelineStart:
-          currentTime,
-        sourceStart:
-          clip.sourceStart +
-          leftDuration,
-        duration:
-          rightDuration,
-      };
+          id:
+            crypto.randomUUID(),
+
+          duration:
+            leftDuration,
+        };
+
+      const right: TimelineClip =
+        {
+          ...clip,
+
+          id:
+            crypto.randomUUID(),
+
+          timelineStart:
+            currentTime,
+
+          sourceStart:
+            clip.sourceStart +
+            leftDuration,
+
+          duration:
+            rightDuration,
+        };
 
       setTimelineClips(
         (prev) =>
           prev.flatMap(
             (item) =>
-              item.id === clip!.id
-                ? [left, right]
+              item.id ===
+              clip!.id
+                ? [
+                    left,
+                    right,
+                  ]
                 : [item]
           )
       );
@@ -964,7 +1357,9 @@ export function useEditor() {
         right.id
       );
 
-      if (clip.track === "V1") {
+      if (
+        clip.track === "V1"
+      ) {
         activeV1ClipIdRef.current =
           right.id;
       } else {
@@ -997,7 +1392,9 @@ export function useEditor() {
           )
       );
 
-      setSelectedClipId(null);
+      setSelectedClipId(
+        null
+      );
 
       pauseAll();
     };
@@ -1018,7 +1415,9 @@ export function useEditor() {
             selectedClipId
         );
 
-      if (!deleted) return;
+      if (!deleted) {
+        return;
+      }
 
       pushHistory();
 
@@ -1030,42 +1429,52 @@ export function useEditor() {
                 clip.id !==
                 deleted.id
             )
-            .map((clip) => {
-              if (
-                clip.track ===
-                  deleted.track &&
-                clip.timelineStart >
-                  deleted.timelineStart
-              ) {
-                return {
-                  ...clip,
-                  timelineStart:
-                    Math.max(
-                      0,
-                      clip.timelineStart -
-                        deleted.duration
-                    ),
-                };
-              }
+            .map(
+              (clip) => {
+                if (
+                  clip.track ===
+                    deleted.track &&
+                  clip.timelineStart >
+                    deleted.timelineStart
+                ) {
+                  return {
+                    ...clip,
 
-              return clip;
-            })
+                    timelineStart:
+                      Math.max(
+                        0,
+
+                        clip.timelineStart -
+                          deleted.duration
+                      ),
+                  };
+                }
+
+                return clip;
+              }
+            )
       );
 
-      setSelectedClipId(null);
+      setSelectedClipId(
+        null
+      );
 
       pauseAll();
     };
 
   /* ---------------------------------------
-     DRAG START
+     DRAG
   --------------------------------------- */
 
   const startClipDrag = (
     event: React.MouseEvent,
     clip: TimelineClip
   ) => {
-    if (tracksLocked) return;
+    if (
+      tracksLocked
+    ) {
+      return;
+    }
 
     event.stopPropagation();
 
@@ -1080,27 +1489,38 @@ export function useEditor() {
         timelineClipsRef.current
       );
 
-    dragStateRef.current = {
-      clipId: clip.id,
-      startMouseX:
-        event.clientX,
-      initialTimelineStart:
-        clip.timelineStart,
-    };
+    dragStateRef.current =
+      {
+        clipId:
+          clip.id,
+
+        startMouseX:
+          event.clientX,
+
+        initialTimelineStart:
+          clip.timelineStart,
+      };
   };
 
   /* ---------------------------------------
-     TRIM START
+     TRIM
   --------------------------------------- */
 
   const startTrim = (
     event: React.MouseEvent,
     clip: TimelineClip,
-    side: "left" | "right"
+    side:
+      | "left"
+      | "right"
   ) => {
-    if (tracksLocked) return;
+    if (
+      tracksLocked
+    ) {
+      return;
+    }
 
     event.stopPropagation();
+
     event.preventDefault();
 
     pauseAll();
@@ -1114,19 +1534,25 @@ export function useEditor() {
         timelineClipsRef.current
       );
 
-    trimStateRef.current = {
-      clipId:
-        clip.id,
-      side,
-      startMouseX:
-        event.clientX,
-      initialTimelineStart:
-        clip.timelineStart,
-      initialSourceStart:
-        clip.sourceStart,
-      initialDuration:
-        clip.duration,
-    };
+    trimStateRef.current =
+      {
+        clipId:
+          clip.id,
+
+        side,
+
+        startMouseX:
+          event.clientX,
+
+        initialTimelineStart:
+          clip.timelineStart,
+
+        initialSourceStart:
+          clip.sourceStart,
+
+        initialDuration:
+          clip.duration,
+      };
   };
 
   /* ---------------------------------------
@@ -1149,23 +1575,30 @@ export function useEditor() {
         ? v2Height
         : audioHeight;
 
-    resizeStateRef.current = {
-      track,
-      startMouseY:
-        event.clientY,
-      initialHeight:
-        height,
-    };
+    resizeStateRef.current =
+      {
+        track,
+
+        startMouseY:
+          event.clientY,
+
+        initialHeight:
+          height,
+      };
   };
 
   /* ---------------------------------------
-     GLOBAL MOUSE
+     GLOBAL MOUSE EVENTS
   --------------------------------------- */
 
   useEffect(() => {
     const mouseMove = (
       event: MouseEvent
     ) => {
+      /*
+        Track resize
+      */
+
       const resize =
         resizeStateRef.current;
 
@@ -1177,15 +1610,18 @@ export function useEditor() {
         const height =
           Math.max(
             MIN_TRACK_HEIGHT,
+
             Math.min(
               MAX_TRACK_HEIGHT,
+
               resize.initialHeight +
                 delta
             )
           );
 
         if (
-          resize.track === "V1"
+          resize.track ===
+          "V1"
         ) {
           setV1Height(
             height
@@ -1193,7 +1629,8 @@ export function useEditor() {
         }
 
         if (
-          resize.track === "V2"
+          resize.track ===
+          "V2"
         ) {
           setV2Height(
             height
@@ -1201,7 +1638,8 @@ export function useEditor() {
         }
 
         if (
-          resize.track === "A1"
+          resize.track ===
+          "A1"
         ) {
           setAudioHeight(
             height
@@ -1210,6 +1648,10 @@ export function useEditor() {
 
         return;
       }
+
+      /*
+        Clip drag
+      */
 
       const drag =
         dragStateRef.current;
@@ -1222,16 +1664,21 @@ export function useEditor() {
               drag.clipId
           );
 
-        if (!clip) return;
+        if (!clip) {
+          return;
+        }
 
         const delta =
-          (event.clientX -
-            drag.startMouseX) /
+          (
+            event.clientX -
+            drag.startMouseX
+          ) /
           pixelsPerSecond;
 
         const proposed =
           Math.max(
             0,
+
             drag.initialTimelineStart +
               delta
           );
@@ -1239,9 +1686,13 @@ export function useEditor() {
         const snapped =
           getSnappedStart(
             timelineClipsRef.current,
+
             clip.id,
+
             proposed,
+
             clip.duration,
+
             pixelsPerSecond
           );
 
@@ -1253,6 +1704,7 @@ export function useEditor() {
                 clip.id
                   ? {
                       ...item,
+
                       timelineStart:
                         snapped,
                     }
@@ -1263,10 +1715,16 @@ export function useEditor() {
         return;
       }
 
+      /*
+        Trim
+      */
+
       const trim =
         trimStateRef.current;
 
-      if (!trim) return;
+      if (!trim) {
+        return;
+      }
 
       const clip =
         timelineClipsRef.current.find(
@@ -1275,7 +1733,9 @@ export function useEditor() {
             trim.clipId
         );
 
-      if (!clip) return;
+      if (!clip) {
+        return;
+      }
 
       const media =
         getMediaById(
@@ -1283,22 +1743,31 @@ export function useEditor() {
         );
 
       const delta =
-        (event.clientX -
-          trim.startMouseX) /
+        (
+          event.clientX -
+          trim.startMouseX
+        ) /
         pixelsPerSecond;
 
+      /*
+        Left trim
+      */
+
       if (
-        trim.side === "left"
+        trim.side ===
+        "left"
       ) {
         let allowed =
           Math.max(
             delta,
+
             -trim.initialSourceStart
           );
 
         allowed =
           Math.min(
             allowed,
+
             trim.initialDuration -
               MIN_CLIP_DURATION
           );
@@ -1306,6 +1775,7 @@ export function useEditor() {
         const newStart =
           Math.max(
             0,
+
             trim.initialTimelineStart +
               allowed
           );
@@ -1322,17 +1792,22 @@ export function useEditor() {
                 trim.clipId
                   ? {
                       ...item,
+
                       timelineStart:
                         newStart,
+
                       sourceStart:
                         Math.max(
                           0,
+
                           trim.initialSourceStart +
                             actualDelta
                         ),
+
                       duration:
                         Math.max(
                           MIN_CLIP_DURATION,
+
                           trim.initialDuration -
                             actualDelta
                         ),
@@ -1340,10 +1815,20 @@ export function useEditor() {
                   : item
             )
         );
-      } else {
+      }
+
+      /*
+        Right trim
+      */
+
+      if (
+        trim.side ===
+        "right"
+      ) {
         let duration =
           Math.max(
             MIN_CLIP_DURATION,
+
             trim.initialDuration +
               delta
           );
@@ -1352,6 +1837,7 @@ export function useEditor() {
           duration =
             Math.min(
               duration,
+
               media.duration -
                 trim.initialSourceStart
             );
@@ -1365,6 +1851,7 @@ export function useEditor() {
                 trim.clipId
                   ? {
                       ...item,
+
                       duration,
                     }
                   : item
@@ -1374,6 +1861,10 @@ export function useEditor() {
     };
 
     const mouseUp = () => {
+      /*
+        One history point for full drag/trim operation.
+      */
+
       if (
         operationSnapshotRef.current
       ) {
@@ -1381,7 +1872,9 @@ export function useEditor() {
           operationSnapshotRef.current;
 
         const changed =
-          JSON.stringify(old) !==
+          JSON.stringify(
+            old
+          ) !==
           JSON.stringify(
             timelineClipsRef.current
           );
@@ -1433,7 +1926,7 @@ export function useEditor() {
   ]);
 
   /* ---------------------------------------
-     FRAMES
+     VIDEO FRAMES
   --------------------------------------- */
 
   const getFrames = (
@@ -1455,8 +1948,10 @@ export function useEditor() {
     const frameCount =
       Math.max(
         1,
+
         Math.min(
           20,
+
           Math.ceil(
             width / 65
           )
@@ -1469,12 +1964,18 @@ export function useEditor() {
           frameCount,
       },
 
-      (_, index) => {
+      (
+        _,
+        index
+      ) => {
         const progress =
           frameCount === 1
             ? 0
             : index /
-              (frameCount - 1);
+              (
+                frameCount -
+                1
+              );
 
         const sourceTime =
           clip.sourceStart +
@@ -1484,8 +1985,10 @@ export function useEditor() {
         const normalized =
           Math.max(
             0,
+
             Math.min(
               1,
+
               sourceTime /
                 media.duration
             )
@@ -1494,9 +1997,12 @@ export function useEditor() {
         const indexInMedia =
           Math.round(
             normalized *
-              (media.thumbnails
-                .length -
-                1)
+              (
+                media
+                  .thumbnails
+                  .length -
+                1
+              )
           );
 
         return media.thumbnails[
@@ -1507,7 +2013,7 @@ export function useEditor() {
   };
 
   /* ---------------------------------------
-     WAVEFORM
+     AUDIO WAVEFORM
   --------------------------------------- */
 
   const getWaveform = (
@@ -1529,8 +2035,10 @@ export function useEditor() {
     const count =
       Math.max(
         5,
+
         Math.min(
           150,
+
           Math.floor(
             width / 4
           )
@@ -1543,12 +2051,18 @@ export function useEditor() {
           count,
       },
 
-      (_, index) => {
+      (
+        _,
+        index
+      ) => {
         const progress =
           count === 1
             ? 0
             : index /
-              (count - 1);
+              (
+                count -
+                1
+              );
 
         const sourceTime =
           clip.sourceStart +
@@ -1558,8 +2072,10 @@ export function useEditor() {
         const normalized =
           Math.max(
             0,
+
             Math.min(
               1,
+
               sourceTime /
                 media.duration
             )
@@ -1568,9 +2084,12 @@ export function useEditor() {
         const waveformIndex =
           Math.round(
             normalized *
-              (media.waveform
-                .length -
-                1)
+              (
+                media
+                  .waveform
+                  .length -
+                1
+              )
           );
 
         return (
@@ -1590,7 +2109,9 @@ export function useEditor() {
     setZoom((prev) =>
       Math.min(
         MAX_ZOOM,
-        prev + ZOOM_STEP
+
+        prev +
+          ZOOM_STEP
       )
     );
 
@@ -1598,12 +2119,14 @@ export function useEditor() {
     setZoom((prev) =>
       Math.max(
         MIN_ZOOM,
-        prev - ZOOM_STEP
+
+        prev -
+          ZOOM_STEP
       )
     );
 
   /* ---------------------------------------
-     KEYBOARD
+     KEYBOARD SHORTCUTS
   --------------------------------------- */
 
   useEffect(() => {
@@ -1620,7 +2143,14 @@ export function useEditor() {
           "TEXTAREA" ||
         target.isContentEditable;
 
-      if (typing) return;
+      if (typing) {
+        return;
+      }
+
+      /*
+        Ctrl + Shift + Z
+        Redo
+      */
 
       if (
         event.ctrlKey &&
@@ -1629,9 +2159,16 @@ export function useEditor() {
           "z"
       ) {
         event.preventDefault();
+
         redo();
+
         return;
       }
+
+      /*
+        Ctrl + Z
+        Undo
+      */
 
       if (
         event.ctrlKey &&
@@ -1639,32 +2176,56 @@ export function useEditor() {
           "z"
       ) {
         event.preventDefault();
+
         undo();
+
         return;
       }
+
+      /*
+        S
+        Split
+      */
 
       if (
         event.key.toLowerCase() ===
         "s"
       ) {
         event.preventDefault();
+
         splitAtPlayhead();
+
         return;
       }
 
+      /*
+        Space
+        Play / Pause
+      */
+
       if (
-        event.code === "Space"
+        event.code ===
+        "Space"
       ) {
         event.preventDefault();
+
         void togglePlay();
+
         return;
       }
 
+      /*
+        Delete
+      */
+
       if (
-        event.key === "Delete" ||
-        event.key === "Backspace"
+        event.key ===
+          "Delete" ||
+        event.key ===
+          "Backspace"
       ) {
         event.preventDefault();
+
         deleteSelectedClip();
       }
     };
@@ -1692,6 +2253,10 @@ export function useEditor() {
     audioMuted,
   ]);
 
+  /* ---------------------------------------
+     RETURN
+  --------------------------------------- */
+
   return {
     fileInputRef,
 
@@ -1703,6 +2268,8 @@ export function useEditor() {
 
     selectedClipId,
     setSelectedClipId,
+
+    selectedClip,
 
     currentTime,
     setCurrentTime,
@@ -1717,6 +2284,9 @@ export function useEditor() {
 
     activeV1Media,
     activeV2Media,
+
+    activeV1Clip,
+    activeV2Clip,
 
     v1Visible,
     setV1Visible,
@@ -1745,8 +2315,14 @@ export function useEditor() {
     togglePlay,
 
     handleV1TimeUpdate,
+
     handleV1LoadedMetadata,
+
     handleV2LoadedMetadata,
+
+    updateSelectedClipTransform,
+
+    resetSelectedClipTransform,
 
     splitAtPlayhead,
 
@@ -1765,6 +2341,7 @@ export function useEditor() {
     getWaveform,
 
     undo,
+
     redo,
 
     canUndo:
@@ -1774,6 +2351,7 @@ export function useEditor() {
       future.length > 0,
 
     zoomIn,
+
     zoomOut,
   };
 }
