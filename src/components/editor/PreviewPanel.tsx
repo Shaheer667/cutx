@@ -33,7 +33,11 @@ type Props = {
   activeV2Clip:
     TimelineClip | null;
 
+  activeTextClip:
+    TimelineClip | null;
+
   v1Visible: boolean;
+
   v2Visible: boolean;
 
   audioMuted: boolean;
@@ -44,19 +48,26 @@ type Props = {
 
   projectDuration: number;
 
-  onTogglePlay: () => void;
+  onTogglePlay:
+    () => void;
 
-  onV1TimeUpdate: () => void;
+  onV1TimeUpdate:
+    () => void;
 
-  onV1LoadedMetadata: () => void;
+  onV1LoadedMetadata:
+    () => void;
 
-  onV2LoadedMetadata: () => void;
+  onV2LoadedMetadata:
+    () => void;
 };
 
 function clipStyle(
-  clip: TimelineClip | null,
-  visible: boolean
-): React.CSSProperties {
+  clip:
+    TimelineClip | null,
+
+  visible = true
+):
+  React.CSSProperties {
   if (!clip) {
     return {};
   }
@@ -67,17 +78,30 @@ function clipStyle(
     scale,
     rotation,
     opacity,
-  } = clip.transform;
+  } =
+    clip.transform;
 
   return {
-    transform: `translate(${x}px, ${y}px) scale(${scale / 100}) rotate(${rotation}deg)`,
+    transform: `
+      translate(
+        ${x}px,
+        ${y}px
+      )
+      scale(
+        ${scale / 100}
+      )
+      rotate(
+        ${rotation}deg
+      )
+    `,
 
     transformOrigin:
       "center center",
 
-    opacity: visible
-      ? opacity / 100
-      : 0,
+    opacity:
+      visible
+        ? opacity / 100
+        : 0,
   };
 }
 
@@ -88,6 +112,7 @@ export default function PreviewPanel({
   activeV2Media,
   activeV1Clip,
   activeV2Clip,
+  activeTextClip,
   v1Visible,
   v2Visible,
   audioMuted,
@@ -104,25 +129,12 @@ export default function PreviewPanel({
       {/* PREVIEW */}
 
       <div className="flex-1 min-h-0 flex items-center justify-center px-4 py-3 overflow-hidden">
-        <div
-          className="
-            relative
-            aspect-video
-            w-[min(96%,1100px)]
-            max-h-[96%]
-            bg-black
-            rounded-xl
-            overflow-hidden
-            border
-            border-[#242933]
-            shadow-2xl
-            shadow-black/40
-          "
-        >
+        <div className="relative aspect-video w-[min(96%,1100px)] max-h-[96%] bg-black rounded-xl overflow-hidden border border-[#242933] shadow-2xl shadow-black/40">
           {/* V1 */}
 
           {activeV1Media &&
-            activeV1Clip && (
+            activeV1Clip?.kind ===
+              "video" && (
               <video
                 ref={
                   v1VideoRef
@@ -155,7 +167,8 @@ export default function PreviewPanel({
           {/* V2 */}
 
           {activeV2Media &&
-            activeV2Clip && (
+            activeV2Clip?.kind ===
+              "video" && (
               <video
                 ref={
                   v2VideoRef
@@ -180,18 +193,78 @@ export default function PreviewPanel({
               />
             )}
 
-          {/* EMPTY */}
+          {/* T1 */}
+
+          {activeTextClip?.kind ===
+            "text" && (
+            <div
+              style={
+                clipStyle(
+                  activeTextClip
+                )
+              }
+              className="
+                absolute
+                inset-0
+                z-20
+                flex
+                items-center
+                justify-center
+                pointer-events-none
+                px-8
+              "
+            >
+              <div
+                style={{
+                  color:
+                    activeTextClip
+                      .textStyle
+                      .color,
+
+                  fontSize: `${
+                    activeTextClip
+                      .textStyle
+                      .fontSize
+                  }px`,
+
+                  fontWeight:
+                    activeTextClip
+                      .textStyle
+                      .fontWeight,
+
+                  textAlign:
+                    activeTextClip
+                      .textStyle
+                      .align,
+                }}
+                className="
+                  w-full
+                  whitespace-pre-wrap
+                  break-words
+                  leading-tight
+                  drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]
+                "
+              >
+                {
+                  activeTextClip.text
+                }
+              </div>
+            </div>
+          )}
 
           {!activeV1Clip &&
-            !activeV2Clip && (
+            !activeV2Clip &&
+            !activeTextClip && (
               <div className="absolute inset-0 flex items-center justify-center text-white/25 text-xs">
-                Move the playhead over a clip
+                Move the
+                playhead over a
+                clip
               </div>
             )}
         </div>
       </div>
 
-      {/* PLAYBACK CONTROLS */}
+      {/* CONTROLS */}
 
       <div className="h-12 shrink-0 border-t border-[#1D222B] flex items-center justify-center gap-5">
         <span className="text-xs text-white/40 tabular-nums">

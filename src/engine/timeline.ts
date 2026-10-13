@@ -1,32 +1,59 @@
 import {
   TimelineClip,
+  VideoTimelineClip,
   VideoTrack,
 } from "@/types/editor";
 
 export function cloneClips(
   clips: TimelineClip[]
 ) {
-  return clips.map((clip) => ({
-    ...clip,
-  }));
+  return clips.map(
+    (clip) => ({
+      ...clip,
+
+      transform: {
+        ...clip.transform,
+      },
+
+      ...(clip.kind ===
+      "text"
+        ? {
+            textStyle: {
+              ...clip.textStyle,
+            },
+          }
+        : {}),
+    })
+  ) as TimelineClip[];
 }
 
 export function getClipAtTime(
   clips: TimelineClip[],
+
   timelineTime: number,
+
   track?: VideoTrack
-) {
+):
+  | VideoTimelineClip
+  | undefined {
   return [...clips]
     .filter(
-      (clip) =>
-        !track ||
-        clip.track === track
+      (
+        clip
+      ): clip is VideoTimelineClip =>
+        clip.kind ===
+          "video" &&
+        (!track ||
+          clip.track ===
+            track)
     )
+
     .sort(
       (a, b) =>
         a.timelineStart -
         b.timelineStart
     )
+
     .find((clip) => {
       const clipEnd =
         clip.timelineStart +
@@ -35,7 +62,8 @@ export function getClipAtTime(
       return (
         timelineTime >=
           clip.timelineStart &&
-        timelineTime < clipEnd
+        timelineTime <
+          clipEnd
       );
     });
 }
@@ -58,12 +86,18 @@ export function getProjectDuration(
 
 export function getTrackEnd(
   clips: TimelineClip[],
+
   track: VideoTrack
 ) {
   const trackClips =
     clips.filter(
-      (clip) =>
-        clip.track === track
+      (
+        clip
+      ): clip is VideoTimelineClip =>
+        clip.kind ===
+          "video" &&
+        clip.track ===
+          track
     );
 
   if (!trackClips.length) {
@@ -81,18 +115,25 @@ export function getTrackEnd(
 
 export function getSnappedStart(
   clips: TimelineClip[],
+
   clipId: string,
+
   proposedStart: number,
+
   duration: number,
+
   pixelsPerSecond: number
 ) {
   const threshold =
     10 / pixelsPerSecond;
 
-  const snapPoints: number[] = [0];
+  const snapPoints: number[] =
+    [0];
 
   clips.forEach((clip) => {
-    if (clip.id === clipId) {
+    if (
+      clip.id === clipId
+    ) {
       return;
     }
 
@@ -116,38 +157,44 @@ export function getSnappedStart(
     proposedStart +
     duration;
 
-  snapPoints.forEach((point) => {
-    const startDistance =
-      Math.abs(
-        proposedStart - point
-      );
+  snapPoints.forEach(
+    (point) => {
+      const startDistance =
+        Math.abs(
+          proposedStart -
+            point
+        );
 
-    if (
-      startDistance <
-      bestDistance
-    ) {
-      bestDistance =
-        startDistance;
+      if (
+        startDistance <
+        bestDistance
+      ) {
+        bestDistance =
+          startDistance;
 
-      bestStart = point;
+        bestStart =
+          point;
+      }
+
+      const endDistance =
+        Math.abs(
+          proposedEnd -
+            point
+        );
+
+      if (
+        endDistance <
+        bestDistance
+      ) {
+        bestDistance =
+          endDistance;
+
+        bestStart =
+          point -
+          duration;
+      }
     }
-
-    const endDistance =
-      Math.abs(
-        proposedEnd - point
-      );
-
-    if (
-      endDistance <
-      bestDistance
-    ) {
-      bestDistance =
-        endDistance;
-
-      bestStart =
-        point - duration;
-    }
-  });
+  );
 
   return Math.max(
     0,

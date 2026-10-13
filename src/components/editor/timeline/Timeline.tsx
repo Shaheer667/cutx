@@ -10,89 +10,132 @@ import {
 
 import TimelineToolbar from "./TimelineToolbar";
 import TimelineRuler from "./TimelineRuler";
-
 import VideoTrack from "./VideoTrack";
+import TextTrack from "./TextTrack";
 import AudioTrack from "./AudioTrack";
 
 type Props = {
-  clips: TimelineClip[];
+  clips:
+    TimelineClip[];
 
   selectedClipId:
     string | null;
 
-  currentTime: number;
+  currentTime:
+    number;
 
-  projectDuration: number;
+  projectDuration:
+    number;
 
-  pixelsPerSecond: number;
+  pixelsPerSecond:
+    number;
 
-  zoom: number;
+  zoom:
+    number;
 
-  v1Visible: boolean;
-  v2Visible: boolean;
+  v1Visible:
+    boolean;
 
-  audioMuted: boolean;
+  v2Visible:
+    boolean;
 
-  locked: boolean;
+  audioMuted:
+    boolean;
 
-  v1Height: number;
-  v2Height: number;
-  audioHeight: number;
+  locked:
+    boolean;
+
+  v1Height:
+    number;
+
+  v2Height:
+    number;
+
+  audioHeight:
+    number;
 
   getFrames: (
-    clip: TimelineClip,
-    width: number
+    clip:
+      TimelineClip,
+
+    width:
+      number
   ) => string[];
 
   getWaveform: (
-    clip: TimelineClip,
-    width: number
+    clip:
+      TimelineClip,
+
+    width:
+      number
   ) => number[];
 
   onSelectClip: (
-    clip: TimelineClip
+    clip:
+      TimelineClip
   ) => void;
 
   onTimelineClick: (
-    event: React.MouseEvent<HTMLDivElement>
+    event:
+      React.MouseEvent<HTMLDivElement>
   ) => void;
 
   onDragStart: (
-    event: React.MouseEvent,
-    clip: TimelineClip
+    event:
+      React.MouseEvent,
+
+    clip:
+      TimelineClip
   ) => void;
 
   onTrimStart: (
-    event: React.MouseEvent,
-    clip: TimelineClip,
-    side: "left" | "right"
+    event:
+      React.MouseEvent,
+
+    clip:
+      TimelineClip,
+
+    side:
+      | "left"
+      | "right"
   ) => void;
 
   onTrackResize: (
-    event: React.MouseEvent,
+    event:
+      React.MouseEvent,
+
     track:
       | "V1"
       | "V2"
       | "A1"
   ) => void;
 
-  onSplit: () => void;
+  onSplit:
+    () => void;
 
-  onDelete: () => void;
+  onDelete:
+    () => void;
 
-  onRippleDelete: () => void;
+  onRippleDelete:
+    () => void;
 
-  onZoomIn: () => void;
+  onZoomIn:
+    () => void;
 
-  onZoomOut: () => void;
+  onZoomOut:
+    () => void;
 
-  onToggleV1: () => void;
+  onToggleV1:
+    () => void;
 
-  onToggleV2: () => void;
+  onToggleV2:
+    () => void;
 
-  onToggleAudio: () => void;
+  onToggleAudio:
+    () => void;
 
-  onToggleLock: () => void;
+  onToggleLock:
+    () => void;
 };
 
 export default function Timeline({
@@ -130,6 +173,7 @@ export default function Timeline({
     Math.max(
       projectDuration *
         pixelsPerSecond,
+
       900
     );
 
@@ -139,7 +183,6 @@ export default function Timeline({
 
   return (
     <section className="h-[290px] min-h-[290px] shrink-0 border-t border-[#222630] bg-[#0D1015] overflow-hidden flex flex-col">
-
       <TimelineToolbar
         selectedClipId={
           selectedClipId
@@ -147,15 +190,27 @@ export default function Timeline({
         currentTime={
           currentTime
         }
-        zoom={zoom}
-        locked={locked}
-        onSplit={onSplit}
-        onDelete={onDelete}
+        zoom={
+          zoom
+        }
+        locked={
+          locked
+        }
+        onSplit={
+          onSplit
+        }
+        onDelete={
+          onDelete
+        }
         onRippleDelete={
           onRippleDelete
         }
-        onZoomIn={onZoomIn}
-        onZoomOut={onZoomOut}
+        onZoomIn={
+          onZoomIn
+        }
+        onZoomOut={
+          onZoomOut
+        }
       />
 
       <TimelineRuler
@@ -168,12 +223,12 @@ export default function Timeline({
       />
 
       <div className="flex-1 min-h-0 overflow-auto">
-
         <div
           className="relative min-h-full"
           style={{
             width: `${
-              timelineWidth + 88
+              timelineWidth +
+              88
             }px`,
           }}
         >
@@ -183,7 +238,8 @@ export default function Timeline({
             className="absolute top-0 bottom-0 z-50 pointer-events-none"
             style={{
               left: `${
-                88 + playhead
+                88 +
+                playhead
               }px`,
             }}
           >
@@ -196,7 +252,9 @@ export default function Timeline({
 
           <VideoTrack
             track="V2"
-            clips={clips}
+            clips={
+              clips
+            }
             trackHeight={
               v2Height
             }
@@ -209,7 +267,9 @@ export default function Timeline({
             visible={
               v2Visible
             }
-            locked={locked}
+            locked={
+              locked
+            }
             getFrames={
               getFrames
             }
@@ -233,14 +293,13 @@ export default function Timeline({
             }
           />
 
-          {/* V2 RESIZER */}
-
           <TrackResizer
             onMouseDown={(
               event
             ) =>
               onTrackResize(
                 event,
+
                 "V2"
               )
             }
@@ -250,7 +309,9 @@ export default function Timeline({
 
           <VideoTrack
             track="V1"
-            clips={clips}
+            clips={
+              clips
+            }
             trackHeight={
               v1Height
             }
@@ -263,7 +324,9 @@ export default function Timeline({
             visible={
               v1Visible
             }
-            locked={locked}
+            locked={
+              locked
+            }
             getFrames={
               getFrames
             }
@@ -287,23 +350,56 @@ export default function Timeline({
             }
           />
 
-          {/* V1 RESIZER */}
-
           <TrackResizer
             onMouseDown={(
               event
             ) =>
               onTrackResize(
                 event,
+
                 "V1"
               )
             }
           />
 
-          {/* AUDIO */}
+          {/* T1 */}
+
+          <TextTrack
+            clips={
+              clips
+            }
+            pixelsPerSecond={
+              pixelsPerSecond
+            }
+            selectedClipId={
+              selectedClipId
+            }
+            locked={
+              locked
+            }
+            onToggleLock={
+              onToggleLock
+            }
+            onTimelineClick={
+              onTimelineClick
+            }
+            onSelectClip={
+              onSelectClip
+            }
+            onDragStart={
+              onDragStart
+            }
+            onTrimStart={
+              onTrimStart
+            }
+          />
+
+          {/* A1 */}
 
           <AudioTrack
-            clips={clips}
+            clips={
+              clips
+            }
             trackHeight={
               audioHeight
             }
@@ -339,23 +435,19 @@ export default function Timeline({
             }
           />
 
-          {/* AUDIO RESIZER */}
-
           <TrackResizer
             onMouseDown={(
               event
             ) =>
               onTrackResize(
                 event,
+
                 "A1"
               )
             }
           />
-
         </div>
-
       </div>
-
     </section>
   );
 }
@@ -363,14 +455,13 @@ export default function Timeline({
 function TrackResizer({
   onMouseDown,
 }: {
-  onMouseDown:
-    (
-      event: React.MouseEvent
-    ) => void;
+  onMouseDown: (
+    event:
+      React.MouseEvent
+  ) => void;
 }) {
   return (
     <div className="h-[6px] flex bg-[#11151B]">
-
       <div className="w-[88px] shrink-0 border-r border-[#222630] bg-[#101319]" />
 
       <div
@@ -384,7 +475,6 @@ function TrackResizer({
           className="text-white/15"
         />
       </div>
-
     </div>
   );
 }

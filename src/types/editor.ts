@@ -1,4 +1,5 @@
 export type VideoTrack = "V1" | "V2";
+export type TimelineTrack = VideoTrack | "T1";
 
 export type MediaItem = {
   id: string;
@@ -18,43 +19,89 @@ export type ClipTransform = {
   opacity: number;
 };
 
-export type TimelineClip = {
+export type TextAlign =
+  | "left"
+  | "center"
+  | "right";
+
+export type TextStyle = {
+  fontSize: number;
+  color: string;
+  align: TextAlign;
+  fontWeight: number;
+};
+
+type BaseTimelineClip = {
   id: string;
 
-  mediaId: string;
   name: string;
-  sourceUrl: string;
-
-  track: VideoTrack;
 
   timelineStart: number;
-  sourceStart: number;
+
   duration: number;
 
   transform: ClipTransform;
 };
 
+export type VideoTimelineClip =
+  BaseTimelineClip & {
+    kind: "video";
+
+    mediaId: string;
+
+    sourceUrl: string;
+
+    track: VideoTrack;
+
+    sourceStart: number;
+  };
+
+export type TextTimelineClip =
+  BaseTimelineClip & {
+    kind: "text";
+
+    track: "T1";
+
+    text: string;
+
+    textStyle: TextStyle;
+  };
+
+export type TimelineClip =
+  | VideoTimelineClip
+  | TextTimelineClip;
+
 export type DragState = {
   clipId: string;
+
   startMouseX: number;
+
   initialTimelineStart: number;
 };
 
 export type TrimState = {
   clipId: string;
 
-  side: "left" | "right";
+  side:
+    | "left"
+    | "right";
 
   startMouseX: number;
 
   initialTimelineStart: number;
+
   initialSourceStart: number;
+
   initialDuration: number;
 };
 
 export type TrackResizeState = {
-  track: "V1" | "V2" | "A1";
+  track:
+    | "V1"
+    | "V2"
+    | "A1";
 
   startMouseY: number;
+
   initialHeight: number;
 };

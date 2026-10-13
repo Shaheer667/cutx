@@ -18,8 +18,6 @@ export default function Editor() {
 
   return (
     <main className="h-screen overflow-hidden bg-[#090B0F] text-[#F4F4F5] select-none">
-      {/* FILE INPUT */}
-
       <input
         ref={
           editor.fileInputRef
@@ -32,8 +30,6 @@ export default function Editor() {
         }
         className="hidden"
       />
-
-      {/* TOP BAR */}
 
       <TopBar
         canUndo={
@@ -51,12 +47,12 @@ export default function Editor() {
       />
 
       <div className="flex h-[calc(100vh-56px)] flex-col">
-        {/* WORKSPACE */}
-
         <div className="flex flex-1 min-h-0">
-          <ToolSidebar />
-
-          {/* MEDIA */}
+          <ToolSidebar
+            onAddText={
+              editor.addTextClip
+            }
+          />
 
           <MediaPanel
             mediaItems={
@@ -68,14 +64,13 @@ export default function Editor() {
             onImport={() =>
               editor
                 .fileInputRef
-                .current?.click()
+                .current
+                ?.click()
             }
             onAddToTrack={
               editor.addMediaToTrack
             }
           />
-
-          {/* PREVIEW */}
 
           <PreviewPanel
             v1VideoRef={
@@ -95,6 +90,9 @@ export default function Editor() {
             }
             activeV2Clip={
               editor.activeV2Clip
+            }
+            activeTextClip={
+              editor.activeTextClip
             }
             v1Visible={
               editor.v1Visible
@@ -128,8 +126,6 @@ export default function Editor() {
             }
           />
 
-          {/* PROPERTIES */}
-
           <PropertiesPanel
             selectedClip={
               editor.selectedClip
@@ -143,10 +139,11 @@ export default function Editor() {
             onResetTransform={
               editor.resetSelectedClipTransform
             }
+            onTextChange={
+              editor.updateSelectedText
+            }
           />
         </div>
-
-        {/* TIMELINE */}
 
         <Timeline
           clips={
