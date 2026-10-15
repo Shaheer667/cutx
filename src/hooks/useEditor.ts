@@ -43,6 +43,10 @@ import {
 } from "@/engine/media";
 
 export function useEditor() {
+  /* =====================================
+     REFS
+  ===================================== */
+
   const fileInputRef =
     useRef<HTMLInputElement | null>(
       null
@@ -59,9 +63,7 @@ export function useEditor() {
     );
 
   const timelineClipsRef =
-    useRef<TimelineClip[]>(
-      []
-    );
+    useRef<TimelineClip[]>([]);
 
   const activeV1ClipIdRef =
     useRef<string | null>(
@@ -91,17 +93,38 @@ export function useEditor() {
       null
     );
 
+  /*
+    Timeline drag / trim snapshot
+  */
+
   const operationSnapshotRef =
     useRef<
       TimelineClip[] | null
     >(null);
 
+  /*
+    Preview canvas transform snapshot.
+
+    This is what makes:
+    drag / resize / rotate
+    = ONE undo step.
+  */
+
+  const previewTransformSnapshotRef =
+    useRef<
+      TimelineClip[] | null
+    >(null);
+
+  /* =====================================
+     STATE
+  ===================================== */
+
   const [
     mediaItems,
     setMediaItems,
-  ] = useState<
-    MediaItem[]
-  >([]);
+  ] = useState<MediaItem[]>(
+    []
+  );
 
   const [
     timelineClips,
@@ -206,12 +229,14 @@ export function useEditor() {
     DEFAULT_AUDIO_HEIGHT
   );
 
+  /* =====================================
+     KEEP REFS UPDATED
+  ===================================== */
+
   useEffect(() => {
     timelineClipsRef.current =
       timelineClips;
-  }, [
-    timelineClips,
-  ]);
+  }, [timelineClips]);
 
   useEffect(() => {
     if (
@@ -224,6 +249,10 @@ export function useEditor() {
     audioMuted,
     activeV1Media,
   ]);
+
+  /* =====================================
+     DERIVED VALUES
+  ===================================== */
 
   const projectDuration =
     getProjectDuration(
@@ -267,6 +296,10 @@ export function useEditor() {
             clip.duration
     ) ?? null;
 
+  /* =====================================
+     HELPERS
+  ===================================== */
+
   const getMediaById = (
     mediaId: string
   ) =>
@@ -277,19 +310,13 @@ export function useEditor() {
     );
 
   const getNextClipOnTrack = (
-    track:
-      VideoTrack,
-
-    time:
-      number,
-
-    excludedId?:
-      string
+    track: VideoTrack,
+    time: number,
+    excludedId?: string
   ) =>
     [
       ...timelineClipsRef.current,
     ]
-
       .filter(
         (
           clip
@@ -301,35 +328,31 @@ export function useEditor() {
           clip.id !==
             excludedId &&
           clip.timelineStart >=
-            time -
-              0.02
+            time - 0.02
       )
-
       .sort(
         (a, b) =>
           a.timelineStart -
           b.timelineStart
       )[0];
 
-  const pauseAll =
-    () => {
-      v1VideoRef.current?.pause();
+  const pauseAll = () => {
+    v1VideoRef.current?.pause();
 
-      v2VideoRef.current?.pause();
+    v2VideoRef.current?.pause();
 
-      shouldAutoPlayRef.current =
-        false;
+    shouldAutoPlayRef.current =
+      false;
 
-      setIsPlaying(
-        false
-      );
-    };
+    setIsPlaying(false);
+  };
 
-  /* HISTORY */
+  /* =====================================
+     HISTORY
+  ===================================== */
 
   const pushHistory = (
-    snapshot?:
-      TimelineClip[]
+    snapshot?: TimelineClip[]
   ) => {
     const state =
       snapshot ??
@@ -337,109 +360,105 @@ export function useEditor() {
         timelineClipsRef.current
       );
 
-    setPast(
-      (prev) => [
-        ...prev.slice(
-          -(
-            MAX_HISTORY -
-            1
-          )
-        ),
+    setPast((prev) => [
+      ...prev.slice(
+        -(MAX_HISTORY - 1)
+      ),
 
-        cloneClips(
-          state
-        ),
-      ]
-    );
+      cloneClips(
+        state
+      ),
+    ]);
 
     setFuture([]);
   };
 
-  const undo =
-    () => {
-      if (
-        !past.length
-      ) {
-        return;
-      }
+  const undo = () => {
+    if (!past.length) {
+      return;
+    }
 
-      const previous =
-        past[
-          past.length -
-            1
-        ];
+    const previous =
+      past[
+        past.length - 1
+      ];
 
-      setFuture(
-        (prev) => [
-          cloneClips(
-            timelineClipsRef.current
-          ),
-
-          ...prev,
-        ]
-      );
-
-      setPast(
-        (prev) =>
-          prev.slice(
-            0,
-            -1
-          )
-      );
-
-      setTimelineClips(
+    setFuture(
+      (prev) => [
         cloneClips(
-          previous
-        )
+          timelineClipsRef.current
+        ),
+
+        ...prev,
+      ]
+    );
+
+    setPast((prev) =>
+      prev.slice(
+        0,
+        -1
+      )
+    );
+
+    const next =
+      cloneClips(
+        previous
       );
 
-      setSelectedClipId(
-        null
-      );
+    timelineClipsRef.current =
+      next;
 
-      pauseAll();
-    };
+    setTimelineClips(
+      next
+    );
 
-  const redo =
-    () => {
-      if (
-        !future.length
-      ) {
-        return;
-      }
+    setSelectedClipId(
+      null
+    );
 
-      const next =
-        future[0];
+    pauseAll();
+  };
 
-      setPast(
-        (prev) => [
-          ...prev,
+  const redo = () => {
+    if (!future.length) {
+      return;
+    }
 
-          cloneClips(
-            timelineClipsRef.current
-          ),
-        ]
-      );
+    const next =
+      future[0];
 
-      setFuture(
-        (prev) =>
-          prev.slice(1)
-      );
+    setPast((prev) => [
+      ...prev,
 
-      setTimelineClips(
-        cloneClips(
-          next
-        )
-      );
+      cloneClips(
+        timelineClipsRef.current
+      ),
+    ]);
 
-      setSelectedClipId(
-        null
-      );
+    setFuture((prev) =>
+      prev.slice(1)
+    );
 
-      pauseAll();
-    };
+    const restored =
+      cloneClips(next);
 
-  /* IMPORT */
+    timelineClipsRef.current =
+      restored;
+
+    setTimelineClips(
+      restored
+    );
+
+    setSelectedClipId(
+      null
+    );
+
+    pauseAll();
+  };
+
+  /* =====================================
+     IMPORT
+  ===================================== */
 
   const importMedia =
     async (
@@ -449,9 +468,7 @@ export function useEditor() {
       const files =
         event.target.files;
 
-      if (
-        !files?.length
-      ) {
+      if (!files?.length) {
         return;
       }
 
@@ -489,7 +506,6 @@ export function useEditor() {
             setMediaItems(
               (prev) => [
                 ...prev,
-
                 media,
               ]
             );
@@ -498,7 +514,6 @@ export function useEditor() {
           ) {
             console.error(
               "Import failed:",
-
               error
             );
           }
@@ -513,14 +528,13 @@ export function useEditor() {
         "";
     };
 
-  /* ADD VIDEO */
+  /* =====================================
+     ADD VIDEO
+  ===================================== */
 
   const addMediaToTrack = (
-    media:
-      MediaItem,
-
-    track:
-      VideoTrack
+    media: MediaItem,
+    track: VideoTrack
   ) => {
     pushHistory();
 
@@ -528,7 +542,6 @@ export function useEditor() {
       track === "V1"
         ? getTrackEnd(
             timelineClipsRef.current,
-
             "V1"
           )
         : currentTime;
@@ -555,34 +568,30 @@ export function useEditor() {
 
         timelineStart,
 
-        sourceStart:
-          0,
+        sourceStart: 0,
 
         duration:
           media.duration,
 
         transform: {
           x: 0,
-
           y: 0,
-
-          scale:
-            100,
-
-          rotation:
-            0,
-
-          opacity:
-            100,
+          scale: 100,
+          rotation: 0,
+          opacity: 100,
         },
       };
 
-    setTimelineClips(
-      (prev) => [
-        ...prev,
+    const next = [
+      ...timelineClipsRef.current,
+      clip,
+    ];
 
-        clip,
-      ]
+    timelineClipsRef.current =
+      next;
+
+    setTimelineClips(
+      next
     );
 
     setSelectedClipId(
@@ -590,8 +599,7 @@ export function useEditor() {
     );
 
     if (
-      track ===
-      "V1"
+      track === "V1"
     ) {
       activeV1ClipIdRef.current =
         clip.id;
@@ -609,94 +617,89 @@ export function useEditor() {
     }
   };
 
-  /* ADD TEXT */
+  /* =====================================
+     ADD TEXT
+  ===================================== */
 
-  const addTextClip =
-    () => {
-      if (
-        tracksLocked
-      ) {
-        return;
-      }
+  const addTextClip = () => {
+    if (
+      tracksLocked
+    ) {
+      return;
+    }
 
-      pushHistory();
+    pushHistory();
 
-      const clip:
-        TimelineClip =
-        {
-          kind:
-            "text",
+    const clip:
+      TimelineClip =
+      {
+        kind:
+          "text",
 
-          id:
-            crypto.randomUUID(),
+        id:
+          crypto.randomUUID(),
 
-          name:
-            "Text",
+        name:
+          "Text",
 
-          track:
-            "T1",
+        track:
+          "T1",
 
-          timelineStart:
-            Math.max(
-              0,
+        timelineStart:
+          Math.max(
+            0,
+            currentTime
+          ),
 
-              currentTime
-            ),
+        duration:
+          5,
 
-          duration:
-            5,
+        transform: {
+          x: 0,
+          y: 0,
+          scale: 100,
+          rotation: 0,
+          opacity: 100,
+        },
 
-          transform: {
-            x: 0,
+        text:
+          "Add text",
 
-            y: 0,
+        textStyle: {
+          fontSize: 48,
+          color:
+            "#FFFFFF",
+          align:
+            "center",
+          fontWeight:
+            700,
+        },
+      };
 
-            scale:
-              100,
+    const next = [
+      ...timelineClipsRef.current,
+      clip,
+    ];
 
-            rotation:
-              0,
+    timelineClipsRef.current =
+      next;
 
-            opacity:
-              100,
-          },
+    setTimelineClips(
+      next
+    );
 
-          text:
-            "Add text",
+    setSelectedClipId(
+      clip.id
+    );
 
-          textStyle: {
-            fontSize:
-              48,
+    setCurrentTime(
+      clip.timelineStart
+    );
+  };
 
-            color:
-              "#FFFFFF",
-
-            align:
-              "center",
-
-            fontWeight:
-              700,
-          },
-        };
-
-      setTimelineClips(
-        (prev) => [
-          ...prev,
-
-          clip,
-        ]
-      );
-
-      setSelectedClipId(
-        clip.id
-      );
-
-      setCurrentTime(
-        clip.timelineStart
-      );
-    };
-
-  /* V2 SYNC */
+  /* =====================================
+     V2 SYNC
+  ===================================== */
 
   const syncV2ToTime =
     async (
@@ -725,9 +728,7 @@ export function useEditor() {
         v2VideoRef.current
           ?.pause();
 
-        if (
-          !clip
-        ) {
+        if (!clip) {
           setActiveV2Media(
             null
           );
@@ -741,9 +742,7 @@ export function useEditor() {
           clip.mediaId
         );
 
-      if (
-        !media
-      ) {
+      if (!media) {
         return;
       }
 
@@ -784,8 +783,7 @@ export function useEditor() {
         Math.abs(
           video.currentTime -
             targetSourceTime
-        ) >
-        0.12
+        ) > 0.12
       ) {
         video.currentTime =
           targetSourceTime;
@@ -801,7 +799,9 @@ export function useEditor() {
       }
     };
 
-  /* SEEK */
+  /* =====================================
+     SEEK
+  ===================================== */
 
   const seekTimeline =
     async (
@@ -838,17 +838,13 @@ export function useEditor() {
           "V1"
         );
 
-      if (
-        v1Clip
-      ) {
+      if (v1Clip) {
         const media =
           getMediaById(
             v1Clip.mediaId
           );
 
-        if (
-          media
-        ) {
+        if (media) {
           activeV1ClipIdRef.current =
             v1Clip.id;
 
@@ -862,8 +858,7 @@ export function useEditor() {
             );
 
           if (
-            activeV1Media
-              ?.id !==
+            activeV1Media?.id !==
             media.id
           ) {
             setActiveV1Media(
@@ -901,12 +896,13 @@ export function useEditor() {
 
       await syncV2ToTime(
         safeTime,
-
         autoplay
       );
     };
 
-  /* SELECT */
+  /* =====================================
+     SELECT
+  ===================================== */
 
   const selectClip = (
     clip:
@@ -920,12 +916,13 @@ export function useEditor() {
 
     void seekTimeline(
       clip.timelineStart,
-
       false
     );
   };
 
-  /* TIMELINE SEEK */
+  /* =====================================
+     TIMELINE CLICK
+  ===================================== */
 
   const seekTimelineFromMouse = (
     event:
@@ -950,12 +947,13 @@ export function useEditor() {
 
     void seekTimeline(
       time,
-
       false
     );
   };
 
-  /* PLAY */
+  /* =====================================
+     PLAY
+  ===================================== */
 
   const togglePlay =
     async () => {
@@ -966,11 +964,8 @@ export function useEditor() {
         return;
       }
 
-      if (
-        isPlaying
-      ) {
+      if (isPlaying) {
         pauseAll();
-
         return;
       }
 
@@ -981,8 +976,7 @@ export function useEditor() {
         startTime >=
         projectDuration
       ) {
-        startTime =
-          0;
+        startTime = 0;
       }
 
       let clip =
@@ -998,7 +992,6 @@ export function useEditor() {
         clip =
           getNextClipOnTrack(
             "V1",
-
             startTime
           );
       }
@@ -1027,12 +1020,13 @@ export function useEditor() {
 
       await seekTimeline(
         startTime,
-
         true
       );
     };
 
-  /* PLAYHEAD SYNC */
+  /* =====================================
+     PLAYHEAD SYNC
+  ===================================== */
 
   const handleV1TimeUpdate =
     () => {
@@ -1086,20 +1080,17 @@ export function useEditor() {
 
       if (
         timelineTime <
-        clipEnd -
-          0.04
+        clipEnd - 0.04
       ) {
         setCurrentTime(
           Math.min(
             clipEnd,
-
             timelineTime
           )
         );
 
         void syncV2ToTime(
           timelineTime,
-
           isPlaying
         );
 
@@ -1109,15 +1100,11 @@ export function useEditor() {
       const nextClip =
         getNextClipOnTrack(
           "V1",
-
           clipEnd,
-
           clip.id
         );
 
-      if (
-        !nextClip
-      ) {
+      if (!nextClip) {
         pauseAll();
 
         setCurrentTime(
@@ -1132,11 +1119,8 @@ export function useEditor() {
           nextClip.mediaId
         );
 
-      if (
-        !nextMedia
-      ) {
+      if (!nextMedia) {
         pauseAll();
-
         return;
       }
 
@@ -1170,12 +1154,13 @@ export function useEditor() {
 
       void syncV2ToTime(
         nextClip.timelineStart,
-
         true
       );
     };
 
-  /* VIDEO LOADED */
+  /* =====================================
+     LOADED METADATA
+  ===================================== */
 
   const handleV1LoadedMetadata =
     async () => {
@@ -1298,7 +1283,9 @@ export function useEditor() {
       }
     };
 
-  /* TRANSFORM */
+  /* =====================================
+     NORMAL PROPERTY TRANSFORM
+  ===================================== */
 
   const updateSelectedClipTransform =
     (
@@ -1316,23 +1303,27 @@ export function useEditor() {
 
       pushHistory();
 
+      const next =
+        timelineClipsRef.current.map(
+          (clip) =>
+            clip.id ===
+            selectedClipId
+              ? {
+                  ...clip,
+
+                  transform: {
+                    ...clip.transform,
+                    ...patch,
+                  },
+                }
+              : clip
+        );
+
+      timelineClipsRef.current =
+        next;
+
       setTimelineClips(
-        (prev) =>
-          prev.map(
-            (clip) =>
-              clip.id ===
-              selectedClipId
-                ? {
-                    ...clip,
-
-                    transform: {
-                      ...clip.transform,
-
-                      ...patch,
-                    },
-                  }
-                : clip
-          )
+        next
       );
     };
 
@@ -1347,36 +1338,143 @@ export function useEditor() {
 
       pushHistory();
 
+      const next =
+        timelineClipsRef.current.map(
+          (clip) =>
+            clip.id ===
+            selectedClipId
+              ? {
+                  ...clip,
+
+                  transform: {
+                    x: 0,
+                    y: 0,
+                    scale: 100,
+                    rotation: 0,
+                    opacity: 100,
+                  },
+                }
+              : clip
+        );
+
+      timelineClipsRef.current =
+        next;
+
       setTimelineClips(
-        (prev) =>
-          prev.map(
-            (clip) =>
-              clip.id ===
-              selectedClipId
-                ? {
-                    ...clip,
-
-                    transform: {
-                      x: 0,
-
-                      y: 0,
-
-                      scale:
-                        100,
-
-                      rotation:
-                        0,
-
-                      opacity:
-                        100,
-                    },
-                  }
-                : clip
-          )
+        next
       );
     };
 
-  /* TEXT PROPERTIES */
+  /* =====================================
+     PREVIEW TRANSFORM SESSION
+  ===================================== */
+
+  const beginPreviewTransform = (
+    clip:
+      TimelineClip
+  ) => {
+    if (
+      tracksLocked
+    ) {
+      return;
+    }
+
+    pauseAll();
+
+    setSelectedClipId(
+      clip.id
+    );
+
+    /*
+      Only take snapshot once
+      at start of gesture.
+    */
+
+    if (
+      !previewTransformSnapshotRef.current
+    ) {
+      previewTransformSnapshotRef.current =
+        cloneClips(
+          timelineClipsRef.current
+        );
+    }
+  };
+
+  const updatePreviewTransform = (
+    clipId:
+      string,
+
+    patch:
+      Partial<
+        TimelineClip["transform"]
+      >
+  ) => {
+    if (
+      tracksLocked
+    ) {
+      return;
+    }
+
+    const next =
+      timelineClipsRef.current.map(
+        (clip) =>
+          clip.id ===
+          clipId
+            ? {
+                ...clip,
+
+                transform: {
+                  ...clip.transform,
+                  ...patch,
+                },
+              }
+            : clip
+      );
+
+    /*
+      Important:
+      ref updates immediately,
+      so mouseup sees latest state.
+    */
+
+    timelineClipsRef.current =
+      next;
+
+    setTimelineClips(
+      next
+    );
+  };
+
+  const commitPreviewTransform =
+    () => {
+      const snapshot =
+        previewTransformSnapshotRef.current;
+
+      if (!snapshot) {
+        return;
+      }
+
+      const changed =
+        JSON.stringify(
+          snapshot
+        ) !==
+        JSON.stringify(
+          timelineClipsRef.current
+        );
+
+      if (changed) {
+        pushHistory(
+          snapshot
+        );
+      }
+
+      previewTransformSnapshotRef.current =
+        null;
+    };
+
+  /* =====================================
+     TEXT PROPERTIES
+  ===================================== */
 
   const updateSelectedText = (
     patch: {
@@ -1419,68 +1517,75 @@ export function useEditor() {
 
     pushHistory();
 
-    setTimelineClips(
-      (prev) =>
-        prev.map(
-          (clip) => {
-            if (
-              clip.id !==
-                selectedClipId ||
-              clip.kind !==
-                "text"
-            ) {
-              return clip;
-            }
-
-            return {
-              ...clip,
-
-              text:
-                patch.text ??
-                clip.text,
-
-              textStyle: {
-                ...clip.textStyle,
-
-                ...(patch.fontSize !==
-                undefined
-                  ? {
-                      fontSize:
-                        patch.fontSize,
-                    }
-                  : {}),
-
-                ...(patch.color !==
-                undefined
-                  ? {
-                      color:
-                        patch.color,
-                    }
-                  : {}),
-
-                ...(patch.align !==
-                undefined
-                  ? {
-                      align:
-                        patch.align,
-                    }
-                  : {}),
-
-                ...(patch.fontWeight !==
-                undefined
-                  ? {
-                      fontWeight:
-                        patch.fontWeight,
-                    }
-                  : {}),
-              },
-            };
+    const next =
+      timelineClipsRef.current.map(
+        (clip) => {
+          if (
+            clip.id !==
+              selectedClipId ||
+            clip.kind !==
+              "text"
+          ) {
+            return clip;
           }
-        )
+
+          return {
+            ...clip,
+
+            text:
+              patch.text ??
+              clip.text,
+
+            textStyle: {
+              ...clip.textStyle,
+
+              ...(patch.fontSize !==
+              undefined
+                ? {
+                    fontSize:
+                      patch.fontSize,
+                  }
+                : {}),
+
+              ...(patch.color !==
+              undefined
+                ? {
+                    color:
+                      patch.color,
+                  }
+                : {}),
+
+              ...(patch.align !==
+              undefined
+                ? {
+                    align:
+                      patch.align,
+                  }
+                : {}),
+
+              ...(patch.fontWeight !==
+              undefined
+                ? {
+                    fontWeight:
+                      patch.fontWeight,
+                  }
+                : {}),
+            },
+          };
+        }
+      );
+
+    timelineClipsRef.current =
+      next;
+
+    setTimelineClips(
+      next
     );
   };
 
-  /* SPLIT */
+  /* =====================================
+     SPLIT
+  ===================================== */
 
   const splitAtPlayhead =
     () => {
@@ -1604,21 +1709,23 @@ export function useEditor() {
                 rightDuration,
             };
 
-      setTimelineClips(
-        (prev) =>
-          prev.flatMap(
-            (item) =>
-              item.id ===
-              clip!.id
-                ? [
-                    left,
+      const next =
+        timelineClipsRef.current.flatMap(
+          (item) =>
+            item.id ===
+            clip!.id
+              ? [
+                  left,
+                  right,
+                ]
+              : [item]
+        );
 
-                    right,
-                  ]
-                : [
-                    item,
-                  ]
-          )
+      timelineClipsRef.current =
+        next;
+
+      setTimelineClips(
+        next
       );
 
       setSelectedClipId(
@@ -1642,7 +1749,9 @@ export function useEditor() {
       }
     };
 
-  /* DELETE */
+  /* =====================================
+     DELETE
+  ===================================== */
 
   const deleteSelectedClip =
     () => {
@@ -1655,13 +1764,18 @@ export function useEditor() {
 
       pushHistory();
 
+      const next =
+        timelineClipsRef.current.filter(
+          (clip) =>
+            clip.id !==
+            selectedClipId
+        );
+
+      timelineClipsRef.current =
+        next;
+
       setTimelineClips(
-        (prev) =>
-          prev.filter(
-            (clip) =>
-              clip.id !==
-              selectedClipId
-          )
+        next
       );
 
       setSelectedClipId(
@@ -1687,47 +1801,49 @@ export function useEditor() {
             selectedClipId
         );
 
-      if (
-        !deleted
-      ) {
+      if (!deleted) {
         return;
       }
 
       pushHistory();
 
-      setTimelineClips(
-        (prev) =>
-          prev
-            .filter(
-              (clip) =>
-                clip.id !==
-                deleted.id
-            )
+      const next =
+        timelineClipsRef.current
+          .filter(
+            (clip) =>
+              clip.id !==
+              deleted.id
+          )
+          .map(
+            (clip) => {
+              if (
+                clip.track ===
+                  deleted.track &&
+                clip.timelineStart >
+                  deleted.timelineStart
+              ) {
+                return {
+                  ...clip,
 
-            .map(
-              (clip) => {
-                if (
-                  clip.track ===
-                    deleted.track &&
-                  clip.timelineStart >
-                    deleted.timelineStart
-                ) {
-                  return {
-                    ...clip,
+                  timelineStart:
+                    Math.max(
+                      0,
 
-                    timelineStart:
-                      Math.max(
-                        0,
-
-                        clip.timelineStart -
-                          deleted.duration
-                      ),
-                  };
-                }
-
-                return clip;
+                      clip.timelineStart -
+                        deleted.duration
+                    ),
+                };
               }
-            )
+
+              return clip;
+            }
+          );
+
+      timelineClipsRef.current =
+        next;
+
+      setTimelineClips(
+        next
       );
 
       setSelectedClipId(
@@ -1737,7 +1853,9 @@ export function useEditor() {
       pauseAll();
     };
 
-  /* DRAG */
+  /* =====================================
+     TIMELINE DRAG
+  ===================================== */
 
   const startClipDrag = (
     event:
@@ -1778,7 +1896,9 @@ export function useEditor() {
       };
   };
 
-  /* TRIM */
+  /* =====================================
+     TRIM
+  ===================================== */
 
   const startTrim = (
     event:
@@ -1836,7 +1956,9 @@ export function useEditor() {
       };
   };
 
-  /* TRACK RESIZE */
+  /* =====================================
+     TRACK RESIZE
+  ===================================== */
 
   const startTrackResize = (
     event:
@@ -1868,7 +1990,9 @@ export function useEditor() {
       };
   };
 
-  /* GLOBAL MOUSE */
+  /* =====================================
+     GLOBAL TIMELINE MOUSE
+  ===================================== */
 
   useEffect(() => {
     const mouseMove = (
@@ -1878,9 +2002,7 @@ export function useEditor() {
       const resize =
         resizeStateRef.current;
 
-      if (
-        resize
-      ) {
+      if (resize) {
         const delta =
           event.clientY -
           resize.startMouseY;
@@ -1930,9 +2052,7 @@ export function useEditor() {
       const drag =
         dragStateRef.current;
 
-      if (
-        drag
-      ) {
+      if (drag) {
         const clip =
           timelineClipsRef.current.find(
             (item) =>
@@ -1972,20 +2092,25 @@ export function useEditor() {
             pixelsPerSecond
           );
 
-        setTimelineClips(
-          (prev) =>
-            prev.map(
-              (item) =>
-                item.id ===
+        const next =
+          timelineClipsRef.current.map(
+            (item) =>
+              item.id ===
                 clip.id
-                  ? {
-                      ...item,
+                ? {
+                    ...item,
 
-                      timelineStart:
-                        snapped,
-                    }
-                  : item
-            )
+                    timelineStart:
+                      snapped,
+                  }
+                : item
+          );
+
+        timelineClipsRef.current =
+          next;
+
+        setTimelineClips(
+          next
         );
 
         return;
@@ -2037,7 +2162,6 @@ export function useEditor() {
         let allowed =
           Math.max(
             delta,
-
             minDelta
           );
 
@@ -2061,50 +2185,33 @@ export function useEditor() {
           newStart -
           trim.initialTimelineStart;
 
-        setTimelineClips(
-          (prev) =>
-            prev.map(
-              (item) => {
-                if (
-                  item.id !==
-                  trim.clipId
-                ) {
-                  return item;
-                }
+        const next =
+          timelineClipsRef.current.map(
+            (item) => {
+              if (
+                item.id !==
+                trim.clipId
+              ) {
+                return item;
+              }
 
-                if (
-                  item.kind ===
-                  "video"
-                ) {
-                  return {
-                    ...item,
-
-                    timelineStart:
-                      newStart,
-
-                    sourceStart:
-                      Math.max(
-                        0,
-
-                        trim.initialSourceStart +
-                          actualDelta
-                      ),
-
-                    duration:
-                      Math.max(
-                        MIN_CLIP_DURATION,
-
-                        trim.initialDuration -
-                          actualDelta
-                      ),
-                  };
-                }
-
+              if (
+                item.kind ===
+                "video"
+              ) {
                 return {
                   ...item,
 
                   timelineStart:
                     newStart,
+
+                  sourceStart:
+                    Math.max(
+                      0,
+
+                      trim.initialSourceStart +
+                        actualDelta
+                    ),
 
                   duration:
                     Math.max(
@@ -2115,7 +2222,29 @@ export function useEditor() {
                     ),
                 };
               }
-            )
+
+              return {
+                ...item,
+
+                timelineStart:
+                  newStart,
+
+                duration:
+                  Math.max(
+                    MIN_CLIP_DURATION,
+
+                    trim.initialDuration -
+                      actualDelta
+                  ),
+              };
+            }
+          );
+
+        timelineClipsRef.current =
+          next;
+
+        setTimelineClips(
+          next
         );
 
         return;
@@ -2129,9 +2258,7 @@ export function useEditor() {
             delta
         );
 
-      if (
-        media
-      ) {
+      if (media) {
         duration =
           Math.min(
             duration,
@@ -2141,82 +2268,79 @@ export function useEditor() {
           );
       }
 
-      setTimelineClips(
-        (prev) =>
-          prev.map(
-            (item) =>
-              item.id ===
+      const next =
+        timelineClipsRef.current.map(
+          (item) =>
+            item.id ===
               trim.clipId
-                ? {
-                    ...item,
+              ? {
+                  ...item,
+                  duration,
+                }
+              : item
+        );
 
-                    duration,
-                  }
-                : item
-          )
+      timelineClipsRef.current =
+        next;
+
+      setTimelineClips(
+        next
       );
     };
 
-    const mouseUp =
-      () => {
-        if (
-          operationSnapshotRef.current
-        ) {
-          const old =
-            operationSnapshotRef.current;
+    const mouseUp = () => {
+      if (
+        operationSnapshotRef.current
+      ) {
+        const old =
+          operationSnapshotRef.current;
 
-          const changed =
-            JSON.stringify(
-              old
-            ) !==
-            JSON.stringify(
-              timelineClipsRef.current
-            );
+        const changed =
+          JSON.stringify(
+            old
+          ) !==
+          JSON.stringify(
+            timelineClipsRef.current
+          );
 
-          if (
-            changed
-          ) {
-            pushHistory(
-              old
-            );
-          }
+        if (changed) {
+          pushHistory(
+            old
+          );
         }
+      }
 
-        operationSnapshotRef.current =
-          null;
+      operationSnapshotRef.current =
+        null;
 
-        dragStateRef.current =
-          null;
+      dragStateRef.current =
+        null;
 
-        trimStateRef.current =
-          null;
+      trimStateRef.current =
+        null;
 
-        resizeStateRef.current =
-          null;
-      };
+      resizeStateRef.current =
+        null;
+    };
 
     window.addEventListener(
       "mousemove",
-
       mouseMove
     );
 
     window.addEventListener(
       "mouseup",
-
       mouseUp
     );
 
     return () => {
       window.removeEventListener(
         "mousemove",
-
         mouseMove
       );
 
       window.removeEventListener(
         "mouseup",
-
         mouseUp
       );
     };
@@ -2225,7 +2349,9 @@ export function useEditor() {
     mediaItems,
   ]);
 
-  /* FRAMES */
+  /* =====================================
+     FRAMES
+  ===================================== */
 
   const getFrames = (
     clip:
@@ -2261,8 +2387,7 @@ export function useEditor() {
           20,
 
           Math.ceil(
-            width /
-              65
+            width / 65
           )
         )
       );
@@ -2273,13 +2398,9 @@ export function useEditor() {
           frameCount,
       },
 
-      (
-        _,
-        index
-      ) => {
+      (_, index) => {
         const progress =
-          frameCount ===
-          1
+          frameCount === 1
             ? 0
             : index /
               (
@@ -2323,7 +2444,9 @@ export function useEditor() {
     );
   };
 
-  /* WAVEFORM */
+  /* =====================================
+     WAVEFORM
+  ===================================== */
 
   const getWaveform = (
     clip:
@@ -2359,8 +2482,7 @@ export function useEditor() {
           150,
 
           Math.floor(
-            width /
-              4
+            width / 4
           )
         )
       );
@@ -2371,13 +2493,9 @@ export function useEditor() {
           count,
       },
 
-      (
-        _,
-        index
-      ) => {
+      (_, index) => {
         const progress =
-          count ===
-          1
+          count === 1
             ? 0
             : index /
               (
@@ -2416,40 +2534,41 @@ export function useEditor() {
         return (
           media.waveform[
             waveformIndex
-          ] ??
-          0
+          ] ?? 0
         );
       }
     );
   };
 
-  /* ZOOM */
+  /* =====================================
+     ZOOM
+  ===================================== */
 
-  const zoomIn =
-    () =>
-      setZoom(
-        (prev) =>
-          Math.min(
-            MAX_ZOOM,
+  const zoomIn = () =>
+    setZoom(
+      (prev) =>
+        Math.min(
+          MAX_ZOOM,
 
-            prev +
-              ZOOM_STEP
-          )
-      );
+          prev +
+            ZOOM_STEP
+        )
+    );
 
-  const zoomOut =
-    () =>
-      setZoom(
-        (prev) =>
-          Math.max(
-            MIN_ZOOM,
+  const zoomOut = () =>
+    setZoom(
+      (prev) =>
+        Math.max(
+          MIN_ZOOM,
 
-            prev -
-              ZOOM_STEP
-          )
-      );
+          prev -
+            ZOOM_STEP
+        )
+    );
 
-  /* SHORTCUTS */
+  /* =====================================
+     KEYBOARD
+  ===================================== */
 
   useEffect(() => {
     const keyboard = (
@@ -2457,8 +2576,7 @@ export function useEditor() {
         KeyboardEvent
     ) => {
       const target =
-        event.target as
-          HTMLElement;
+        event.target as HTMLElement;
 
       const typing =
         target.tagName ===
@@ -2469,9 +2587,7 @@ export function useEditor() {
           "SELECT" ||
         target.isContentEditable;
 
-      if (
-        typing
-      ) {
+      if (typing) {
         return;
       }
 
@@ -2536,14 +2652,12 @@ export function useEditor() {
 
     window.addEventListener(
       "keydown",
-
       keyboard
     );
 
     return () =>
       window.removeEventListener(
         "keydown",
-
         keyboard
       );
   }, [
@@ -2559,67 +2673,57 @@ export function useEditor() {
     audioMuted,
   ]);
 
+  /* =====================================
+     RETURN
+  ===================================== */
+
   return {
     fileInputRef,
 
     v1VideoRef,
-
     v2VideoRef,
 
     mediaItems,
-
     timelineClips,
 
     selectedClipId,
-
     setSelectedClipId,
 
     selectedClip,
 
     currentTime,
-
     setCurrentTime,
 
     isPlaying,
-
     isImporting,
 
     zoom,
-
     pixelsPerSecond,
 
     projectDuration,
 
     activeV1Media,
-
     activeV2Media,
 
     activeV1Clip,
-
     activeV2Clip,
 
     activeTextClip,
 
     v1Visible,
-
     setV1Visible,
 
     v2Visible,
-
     setV2Visible,
 
     audioMuted,
-
     setAudioMuted,
 
     tracksLocked,
-
     setTracksLocked,
 
     v1Height,
-
     v2Height,
-
     audioHeight,
 
     importMedia,
@@ -2644,6 +2748,16 @@ export function useEditor() {
 
     resetSelectedClipTransform,
 
+    /*
+      NEW
+    */
+
+    beginPreviewTransform,
+
+    updatePreviewTransform,
+
+    commitPreviewTransform,
+
     updateSelectedText,
 
     splitAtPlayhead,
@@ -2663,19 +2777,15 @@ export function useEditor() {
     getWaveform,
 
     undo,
-
     redo,
 
     canUndo:
-      past.length >
-      0,
+      past.length > 0,
 
     canRedo:
-      future.length >
-      0,
+      future.length > 0,
 
     zoomIn,
-
     zoomOut,
   };
 }

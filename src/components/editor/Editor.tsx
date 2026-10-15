@@ -48,9 +48,9 @@ export default function Editor() {
       null
     );
 
-  /* ---------------------------------------
+  /* ==================================
      WORKSPACE RESIZE
-  --------------------------------------- */
+  ================================== */
 
   const startWorkspaceResize = (
     event:
@@ -58,14 +58,13 @@ export default function Editor() {
   ) => {
     event.preventDefault();
 
-    resizeRef.current =
-      {
-        startY:
-          event.clientY,
+    resizeRef.current = {
+      startY:
+        event.clientY,
 
-        startHeight:
-          timelineHeight,
-      };
+      startHeight:
+        timelineHeight,
+    };
 
     document.body.style.cursor =
       "row-resize";
@@ -93,11 +92,6 @@ export default function Editor() {
         return;
       }
 
-      /*
-        Mouse upwards = timeline gets taller.
-        Mouse downwards = timeline gets shorter.
-      */
-
       const delta =
         resize.startY -
         event.clientY;
@@ -107,7 +101,7 @@ export default function Editor() {
           MIN_TIMELINE_HEIGHT,
 
           window.innerHeight -
-            260
+          260
         );
 
       const maxHeight =
@@ -125,7 +119,7 @@ export default function Editor() {
             maxHeight,
 
             resize.startHeight +
-              delta
+            delta
           )
         );
 
@@ -232,7 +226,9 @@ export default function Editor() {
           flex-col
         "
       >
-        {/* MAIN WORKSPACE */}
+        {/* ==================================
+            MAIN WORKSPACE
+        ================================== */}
 
         <div
           className="
@@ -241,6 +237,8 @@ export default function Editor() {
             min-h-0
           "
         >
+          {/* LEFT TOOLBAR */}
+
           <ToolSidebar
             onAddText={
               editor.addTextClip
@@ -267,86 +265,134 @@ export default function Editor() {
             }
           />
 
-          {/* PREVIEW */}
+          {/* ==================================
+              PREVIEW
+          ================================== */}
 
           <PreviewPanel
             v1VideoRef={
               editor.v1VideoRef
             }
+
             v2VideoRef={
               editor.v2VideoRef
             }
+
             activeV1Media={
               editor.activeV1Media
             }
+
             activeV2Media={
               editor.activeV2Media
             }
+
             activeV1Clip={
               editor.activeV1Clip
             }
+
             activeV2Clip={
               editor.activeV2Clip
             }
+
             activeTextClip={
               editor.activeTextClip
             }
+
+            selectedClipId={
+              editor.selectedClipId
+            }
+
+            locked={
+              editor.tracksLocked
+            }
+
             v1Visible={
               editor.v1Visible
             }
+
             v2Visible={
               editor.v2Visible
             }
+
             audioMuted={
               editor.audioMuted
             }
+
             isPlaying={
               editor.isPlaying
             }
+
             currentTime={
               editor.currentTime
             }
+
             projectDuration={
               editor.projectDuration
             }
+
             onTogglePlay={
               editor.togglePlay
             }
+
             onV1TimeUpdate={
               editor.handleV1TimeUpdate
             }
+
             onV1LoadedMetadata={
               editor.handleV1LoadedMetadata
             }
+
             onV2LoadedMetadata={
               editor.handleV2LoadedMetadata
             }
+
+            onSelectClip={
+              editor.selectClip
+            }
+
+            onBeginTransform={
+              editor.beginPreviewTransform
+            }
+
+            onPreviewTransform={
+              editor.updatePreviewTransform
+            }
+
+            onCommitTransform={
+              editor.commitPreviewTransform
+            }
           />
 
-          {/* PROPERTIES */}
+          {/* ==================================
+              PROPERTIES
+          ================================== */}
 
           <PropertiesPanel
             selectedClip={
               editor.selectedClip
             }
+
             locked={
               editor.tracksLocked
             }
+
             onTransformChange={
               editor.updateSelectedClipTransform
             }
+
             onResetTransform={
               editor.resetSelectedClipTransform
             }
+
             onTextChange={
               editor.updateSelectedText
             }
           />
         </div>
 
-        {/* ----------------------------------
-            PREVIEW / TIMELINE DIVIDER
-        ---------------------------------- */}
+        {/* ==================================
+            WORKSPACE DIVIDER
+        ================================== */}
 
         <div
           onMouseDown={
@@ -355,7 +401,10 @@ export default function Editor() {
           onDoubleClick={
             resetWorkspaceResize
           }
-          title="Drag to resize timeline • Double-click to reset"
+          title="
+            Drag to resize timeline
+            • Double-click to reset
+          "
           className="
             relative
             h-[8px]
@@ -405,102 +454,133 @@ export default function Editor() {
           </div>
         </div>
 
-        {/* TIMELINE */}
+        {/* ==================================
+            TIMELINE
+        ================================== */}
 
         <Timeline
           height={
             timelineHeight
           }
+
           clips={
             editor.timelineClips
           }
+
           selectedClipId={
             editor.selectedClipId
           }
+
           currentTime={
             editor.currentTime
           }
+
           projectDuration={
             editor.projectDuration
           }
+
           pixelsPerSecond={
             editor.pixelsPerSecond
           }
+
           zoom={
             editor.zoom
           }
+
           v1Visible={
             editor.v1Visible
           }
+
           v2Visible={
             editor.v2Visible
           }
+
           audioMuted={
             editor.audioMuted
           }
+
           locked={
             editor.tracksLocked
           }
+
           v1Height={
             editor.v1Height
           }
+
           v2Height={
             editor.v2Height
           }
+
           audioHeight={
             editor.audioHeight
           }
+
           getFrames={
             editor.getFrames
           }
+
           getWaveform={
             editor.getWaveform
           }
+
           onSelectClip={
             editor.selectClip
           }
+
           onTimelineClick={
             editor.seekTimelineFromMouse
           }
+
           onDragStart={
             editor.startClipDrag
           }
+
           onTrimStart={
             editor.startTrim
           }
+
           onTrackResize={
             editor.startTrackResize
           }
+
           onSplit={
             editor.splitAtPlayhead
           }
+
           onDelete={
             editor.deleteSelectedClip
           }
+
           onRippleDelete={
             editor.rippleDeleteSelectedClip
           }
+
           onZoomIn={
             editor.zoomIn
           }
+
           onZoomOut={
             editor.zoomOut
           }
+
           onToggleV1={() =>
             editor.setV1Visible(
               !editor.v1Visible
             )
           }
+
           onToggleV2={() =>
             editor.setV2Visible(
               !editor.v2Visible
             )
           }
+
           onToggleAudio={() =>
             editor.setAudioMuted(
               !editor.audioMuted
             )
           }
+
           onToggleLock={() =>
             editor.setTracksLocked(
               !editor.tracksLocked
