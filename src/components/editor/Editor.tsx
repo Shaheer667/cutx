@@ -48,9 +48,9 @@ export default function Editor() {
       null
     );
 
-  /* ==================================
+  /* =====================================
      WORKSPACE RESIZE
-  ================================== */
+  ===================================== */
 
   const startWorkspaceResize = (
     event:
@@ -101,7 +101,7 @@ export default function Editor() {
           MIN_TIMELINE_HEIGHT,
 
           window.innerHeight -
-          260
+            260
         );
 
       const maxHeight =
@@ -119,7 +119,7 @@ export default function Editor() {
             maxHeight,
 
             resize.startHeight +
-            delta
+              delta
           )
         );
 
@@ -226,9 +226,9 @@ export default function Editor() {
           flex-col
         "
       >
-        {/* ==================================
+        {/* =================================
             MAIN WORKSPACE
-        ================================== */}
+        ================================= */}
 
         <div
           className="
@@ -237,7 +237,7 @@ export default function Editor() {
             min-h-0
           "
         >
-          {/* LEFT TOOLBAR */}
+          {/* TOOLS */}
 
           <ToolSidebar
             onAddText={
@@ -265,9 +265,9 @@ export default function Editor() {
             }
           />
 
-          {/* ==================================
+          {/* =================================
               PREVIEW
-          ================================== */}
+          ================================= */}
 
           <PreviewPanel
             v1VideoRef={
@@ -294,8 +294,8 @@ export default function Editor() {
               editor.activeV2Clip
             }
 
-            activeTextClip={
-              editor.activeTextClip
+            activeTextClips={
+              editor.activeTextClips
             }
 
             selectedClipId={
@@ -363,9 +363,9 @@ export default function Editor() {
             }
           />
 
-          {/* ==================================
+          {/* =================================
               PROPERTIES
-          ================================== */}
+          ================================= */}
 
           <PropertiesPanel
             selectedClip={
@@ -387,12 +387,20 @@ export default function Editor() {
             onTextChange={
               editor.updateSelectedText
             }
+
+            onBringForward={
+              editor.bringSelectedForward
+            }
+
+            onSendBackward={
+              editor.sendSelectedBackward
+            }
           />
         </div>
 
-        {/* ==================================
+        {/* =================================
             WORKSPACE DIVIDER
-        ================================== */}
+        ================================= */}
 
         <div
           onMouseDown={
@@ -401,10 +409,7 @@ export default function Editor() {
           onDoubleClick={
             resetWorkspaceResize
           }
-          title="
-            Drag to resize timeline
-            • Double-click to reset
-          "
+          title="Drag to resize timeline • Double-click to reset"
           className="
             relative
             h-[8px]
@@ -454,9 +459,9 @@ export default function Editor() {
           </div>
         </div>
 
-        {/* ==================================
+        {/* =================================
             TIMELINE
-        ================================== */}
+        ================================= */}
 
         <Timeline
           height={

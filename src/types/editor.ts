@@ -1,5 +1,7 @@
 export type VideoTrack = "V1" | "V2";
-export type TimelineTrack = VideoTrack | "T1";
+export type TimelineTrack =
+  | VideoTrack
+  | "T1";
 
 export type MediaItem = {
   id: string;
@@ -37,8 +39,15 @@ type BaseTimelineClip = {
   name: string;
 
   timelineStart: number;
-
   duration: number;
+
+  /*
+    Visual stacking order.
+
+    V1 normally stays at 0.
+    Overlays/text use 10+.
+  */
+  zIndex: number;
 
   transform: ClipTransform;
 };
@@ -48,7 +57,6 @@ export type VideoTimelineClip =
     kind: "video";
 
     mediaId: string;
-
     sourceUrl: string;
 
     track: VideoTrack;

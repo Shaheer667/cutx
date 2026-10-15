@@ -6,6 +6,12 @@ import {
 } from "lucide-react";
 
 import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import {
   MediaItem,
   TimelineClip,
 } from "@/types/editor";
@@ -33,8 +39,8 @@ type Props = {
   activeV2Clip:
     TimelineClip | null;
 
-  activeTextClip:
-    TimelineClip | null;
+  activeTextClips:
+    TimelineClip[];
 
   selectedClipId:
     string | null;
@@ -96,71 +102,48 @@ type Props = {
     () => void;
 };
 
+type Size = {
+  width: number;
+  height: number;
+};
+
+type SnapGuides = {
+  x: boolean;
+  y: boolean;
+};
+
+const CENTER_SNAP_THRESHOLD =
+  8;
+
 /* =====================================
-   TRANSFORM STYLE
+   HELPERS
 ===================================== */
 
-function getClipStyle(
-  clip:
-    TimelineClip | null,
+function distanceFromCenter(
+  centerX: number,
+  centerY: number,
+  mouseX: number,
+  mouseY: number
+) {
+  const dx =
+    mouseX -
+    centerX;
 
-  visible =
-    true
-):
-  React.CSSProperties {
-  if (!clip) {
-    return {};
-  }
+  const dy =
+    mouseY -
+    centerY;
 
-  const {
-    x,
-    y,
-    scale,
-    rotation,
-    opacity,
-  } =
-    clip.transform;
-
-  return {
-    transform: `
-      translate(
-        ${x}px,
-        ${y}px
-      )
-      scale(
-        ${scale / 100}
-      )
-      rotate(
-        ${rotation}deg
-      )
-    `,
-
-    transformOrigin:
-      "center center",
-
-    opacity:
-      visible
-        ? opacity / 100
-        : 0,
-  };
+  return Math.sqrt(
+    dx * dx +
+      dy * dy
+  );
 }
 
-/* =====================================
-   ANGLE HELPERS
-===================================== */
-
 function angleFromCenter(
-  centerX:
-    number,
-
-  centerY:
-    number,
-
-  mouseX:
-    number,
-
-  mouseY:
-    number
+  centerX: number,
+  centerY: number,
+  mouseX: number,
+  mouseY: number
 ) {
   return (
     Math.atan2(
@@ -175,31 +158,98 @@ function angleFromCenter(
   );
 }
 
-function distanceFromCenter(
-  centerX:
-    number,
+function getContainedSize(
+  containerWidth: number,
+  containerHeight: number,
+  mediaWidth: number,
+  mediaHeight: number
+): Size {
+  if (
+    !containerWidth ||
+    !containerHeight ||
+    !mediaWidth ||
+    !mediaHeight
+  ) {
+    return {
+      width:
+        containerWidth,
 
-  centerY:
-    number,
+      height:
+        containerHeight,
+    };
+  }
 
-  mouseX:
-    number,
+  const containerRatio =
+    containerWidth /
+    containerHeight;
 
-  mouseY:
-    number
-) {
-  const dx =
-    mouseX -
-    centerX;
+  const mediaRatio =
+    mediaWidth /
+    mediaHeight;
 
-  const dy =
-    mouseY -
-    centerY;
+  if (
+    mediaRatio >
+    containerRatio
+  ) {
+    return {
+      width:
+        containerWidth,
 
-  return Math.sqrt(
-    dx * dx +
-    dy * dy
-  );
+      height:
+        containerWidth /
+        mediaRatio,
+    };
+  }
+
+  return {
+    width:
+      containerHeight *
+      mediaRatio,
+
+    height:
+      containerHeight,
+  };
+}
+
+function getTransformStyle(
+  clip:
+    TimelineClip,
+
+  visible =
+    true
+):
+  React.CSSProperties {
+  const {
+    x,
+    y,
+    scale,
+    rotation,
+    opacity,
+  } =
+    clip.transform;
+
+  return {
+    left:
+      "50%",
+
+    top:
+      "50%",
+
+    transform: `
+      translate(-50%, -50%)
+      translate(${x}px, ${y}px)
+      scale(${scale / 100})
+      rotate(${rotation}deg)
+    `,
+
+    transformOrigin:
+      "center center",
+
+    opacity:
+      visible
+        ? opacity / 100
+        : 0,
+  };
 }
 
 /* =====================================
@@ -215,7 +265,8 @@ export default function PreviewPanel({
 
   activeV1Clip,
   activeV2Clip,
-  activeTextClip,
+
+  activeTextClips,
 
   selectedClipId,
 
@@ -247,20 +298,164 @@ export default function PreviewPanel({
 
   onCommitTransform,
 }: Props) {
+  const canvasRef =
+    useRef<HTMLDivElement | null>(
+      null
+    );
+
+  const [
+    canvasSize,
+    setCanvasSize,
+  ] = useState<Size>({
+    width: 0,
+    height: 0,
+  });
+
+  const [
+    v1NaturalSize,
+    setV1NaturalSize,
+  ] = useState<Size>({
+    width: 16,
+    height: 9,
+  });
+
+  const [
+    v2NaturalSize,
+    setV2NaturalSize,
+  ] = useState<Size>({
+    width: 16,
+    height: 9,
+  });
+
+  const [
+    snapGuides,
+    setSnapGuides,
+  ] = useState<SnapGuides>({
+    x: false,
+    y: false,
+  });
+
   const canEdit =
     !isPlaying &&
     !locked;
+
+  /* =====================================
+     CANVAS SIZE
+  ===================================== */
+
+  useEffect(() => {
+    const canvas =
+      canvasRef.current;
+
+    if (!canvas) {
+      return;
+    }
+
+    const updateSize =
+      () => {
+        const rect =
+          canvas.getBoundingClientRect();
+
+        setCanvasSize({
+          width:
+            rect.width,
+
+          height:
+            rect.height,
+        });
+      };
+
+    updateSize();
+
+    const observer =
+      new ResizeObserver(
+        updateSize
+      );
+
+    observer.observe(
+      canvas
+    );
+
+    return () =>
+      observer.disconnect();
+  }, []);
+
+  /* =====================================
+     MEDIA METADATA
+  ===================================== */
+
+  const handleV1Metadata =
+    () => {
+      const video =
+        v1VideoRef.current;
+
+      if (
+        video?.videoWidth &&
+        video?.videoHeight
+      ) {
+        setV1NaturalSize({
+          width:
+            video.videoWidth,
+
+          height:
+            video.videoHeight,
+        });
+      }
+
+      onV1LoadedMetadata();
+    };
+
+  const handleV2Metadata =
+    () => {
+      const video =
+        v2VideoRef.current;
+
+      if (
+        video?.videoWidth &&
+        video?.videoHeight
+      ) {
+        setV2NaturalSize({
+          width:
+            video.videoWidth,
+
+          height:
+            video.videoHeight,
+        });
+      }
+
+      onV2LoadedMetadata();
+    };
+
+  const v1DisplaySize =
+    getContainedSize(
+      canvasSize.width,
+      canvasSize.height,
+      v1NaturalSize.width,
+      v1NaturalSize.height
+    );
+
+  const v2DisplaySize =
+    getContainedSize(
+      canvasSize.width,
+      canvasSize.height,
+      v2NaturalSize.width,
+      v2NaturalSize.height
+    );
+
+  /* =====================================
+     SELECTED
+  ===================================== */
 
   const isSelected = (
     clip:
       TimelineClip | null
   ) =>
     !!clip &&
-    selectedClipId ===
-      clip.id;
+    clip.id ===
+      selectedClipId;
 
   /* =====================================
-     DRAG POSITION
+     MOVE
   ===================================== */
 
   const startMove = (
@@ -275,7 +470,6 @@ export default function PreviewPanel({
     }
 
     event.preventDefault();
-
     event.stopPropagation();
 
     onSelectClip(
@@ -316,17 +510,71 @@ export default function PreviewPanel({
         moveEvent.clientY -
         startMouseY;
 
+      let nextX =
+        startX +
+        deltaX;
+
+      let nextY =
+        startY +
+        deltaY;
+
+      let snapX =
+        false;
+
+      let snapY =
+        false;
+
+      /*
+        Alt disables snapping.
+      */
+
+      if (
+        !moveEvent.altKey
+      ) {
+        if (
+          Math.abs(
+            nextX
+          ) <=
+          CENTER_SNAP_THRESHOLD
+        ) {
+          nextX = 0;
+          snapX = true;
+        }
+
+        if (
+          Math.abs(
+            nextY
+          ) <=
+          CENTER_SNAP_THRESHOLD
+        ) {
+          nextY = 0;
+          snapY = true;
+        }
+      }
+
+      setSnapGuides({
+        x:
+          snapX,
+
+        y:
+          snapY,
+      });
+
       onPreviewTransform(
         clip.id,
 
         {
           x:
-            startX +
-            deltaX,
+            Math.round(
+              nextX *
+                10
+            ) / 10,
 
           y:
-            startY +
-            deltaY,
+            Math.round(
+              nextY *
+                10
+            ) / 10,
         }
       );
     };
@@ -335,13 +583,11 @@ export default function PreviewPanel({
       () => {
         window.removeEventListener(
           "mousemove",
-
           handleMouseMove
         );
 
         window.removeEventListener(
           "mouseup",
-
           handleMouseUp
         );
 
@@ -351,18 +597,21 @@ export default function PreviewPanel({
         document.body.style.userSelect =
           "";
 
+        setSnapGuides({
+          x: false,
+          y: false,
+        });
+
         onCommitTransform();
       };
 
     window.addEventListener(
       "mousemove",
-
       handleMouseMove
     );
 
     window.addEventListener(
       "mouseup",
-
       handleMouseUp
     );
   };
@@ -383,7 +632,6 @@ export default function PreviewPanel({
     }
 
     event.preventDefault();
-
     event.stopPropagation();
 
     onBeginTransform(
@@ -425,7 +673,7 @@ export default function PreviewPanel({
         )
       );
 
-    const startScaleValue =
+    const startingScale =
       clip.transform.scale;
 
     document.body.style.cursor =
@@ -451,15 +699,17 @@ export default function PreviewPanel({
         currentDistance /
         startDistance;
 
-      const nextScale =
+      let nextScale =
+        startingScale *
+        ratio;
+
+      nextScale =
         Math.max(
           10,
 
           Math.min(
             400,
-
-            startScaleValue *
-              ratio
+            nextScale
           )
         );
 
@@ -480,13 +730,11 @@ export default function PreviewPanel({
       () => {
         window.removeEventListener(
           "mousemove",
-
           handleMouseMove
         );
 
         window.removeEventListener(
           "mouseup",
-
           handleMouseUp
         );
 
@@ -501,13 +749,11 @@ export default function PreviewPanel({
 
     window.addEventListener(
       "mousemove",
-
       handleMouseMove
     );
 
     window.addEventListener(
       "mouseup",
-
       handleMouseUp
     );
   };
@@ -528,7 +774,6 @@ export default function PreviewPanel({
     }
 
     event.preventDefault();
-
     event.stopPropagation();
 
     onBeginTransform(
@@ -558,16 +803,15 @@ export default function PreviewPanel({
       rect.top +
       rect.height / 2;
 
-    const startAngle =
+    const startingAngle =
       angleFromCenter(
         centerX,
         centerY,
-
         event.clientX,
         event.clientY
       );
 
-    const initialRotation =
+    const startingRotation =
       clip.transform.rotation;
 
     document.body.style.cursor =
@@ -589,24 +833,19 @@ export default function PreviewPanel({
           moveEvent.clientY
         );
 
-      const delta =
-        currentAngle -
-        startAngle;
-
-      let nextRotation =
-        initialRotation +
-        delta;
-
-      /*
-        Shift = 15 degree snapping
-      */
+      let rotation =
+        startingRotation +
+        (
+          currentAngle -
+          startingAngle
+        );
 
       if (
         moveEvent.shiftKey
       ) {
-        nextRotation =
+        rotation =
           Math.round(
-            nextRotation /
+            rotation /
               15
           ) * 15;
       }
@@ -617,7 +856,7 @@ export default function PreviewPanel({
         {
           rotation:
             Math.round(
-              nextRotation *
+              rotation *
                 10
             ) / 10,
         }
@@ -628,13 +867,11 @@ export default function PreviewPanel({
       () => {
         window.removeEventListener(
           "mousemove",
-
           handleMouseMove
         );
 
         window.removeEventListener(
           "mouseup",
-
           handleMouseUp
         );
 
@@ -649,13 +886,11 @@ export default function PreviewPanel({
 
     window.addEventListener(
       "mousemove",
-
       handleMouseMove
     );
 
     window.addEventListener(
       "mouseup",
-
       handleMouseUp
     );
   };
@@ -670,9 +905,7 @@ export default function PreviewPanel({
         bg-[#090B0F]
       "
     >
-      {/* =================================
-          PREVIEW AREA
-      ================================= */}
+      {/* PREVIEW */}
 
       <div
         className="
@@ -686,9 +919,10 @@ export default function PreviewPanel({
           overflow-hidden
         "
       >
-        {/* CANVAS */}
-
         <div
+          ref={
+            canvasRef
+          }
           className="
             relative
             aspect-video
@@ -703,9 +937,9 @@ export default function PreviewPanel({
             shadow-black/40
           "
         >
-          {/* =============================
+          {/* =================================
               V1
-          ============================= */}
+          ================================= */}
 
           {activeV1Media &&
             activeV1Clip?.kind ===
@@ -720,28 +954,29 @@ export default function PreviewPanel({
                     activeV1Clip
                   )
                 }
-                style={
-                  getClipStyle(
+                style={{
+                  ...getTransformStyle(
                     activeV1Clip,
                     v1Visible
-                  )
-                }
+                  ),
+
+                  width: `${
+                    v1DisplaySize.width
+                  }px`,
+
+                  height: `${
+                    v1DisplaySize.height
+                  }px`,
+
+                  zIndex: 1,
+                }}
                 className={`
                   absolute
-                  inset-0
 
                   ${
                     canEdit
                       ? "cursor-move"
                       : "cursor-default"
-                  }
-
-                  ${
-                    isSelected(
-                      activeV1Clip
-                    )
-                      ? "z-[4]"
-                      : "z-[1]"
                   }
                 `}
               >
@@ -759,7 +994,7 @@ export default function PreviewPanel({
                     audioMuted
                   }
                   onLoadedMetadata={
-                    onV1LoadedMetadata
+                    handleV1Metadata
                   }
                   onTimeUpdate={
                     onV1TimeUpdate
@@ -772,7 +1007,7 @@ export default function PreviewPanel({
                     inset-0
                     w-full
                     h-full
-                    object-contain
+                    object-fill
                     pointer-events-none
                   "
                 />
@@ -782,27 +1017,22 @@ export default function PreviewPanel({
                 ) && (
                   <SelectionOutline
                     label="V1"
-
                     disabled={
                       !canEdit
                     }
-
                     onScaleStart={(
                       event
                     ) =>
                       startScale(
                         event,
-
                         activeV1Clip
                       )
                     }
-
                     onRotateStart={(
                       event
                     ) =>
                       startRotate(
                         event,
-
                         activeV1Clip
                       )
                     }
@@ -811,9 +1041,9 @@ export default function PreviewPanel({
               </div>
             )}
 
-          {/* =============================
+          {/* =================================
               V2
-          ============================= */}
+          ================================= */}
 
           {activeV2Media &&
             activeV2Clip?.kind ===
@@ -825,32 +1055,34 @@ export default function PreviewPanel({
                 ) =>
                   startMove(
                     event,
-
                     activeV2Clip
                   )
                 }
-                style={
-                  getClipStyle(
+                style={{
+                  ...getTransformStyle(
                     activeV2Clip,
                     v2Visible
-                  )
-                }
+                  ),
+
+                  width: `${
+                    v2DisplaySize.width
+                  }px`,
+
+                  height: `${
+                    v2DisplaySize.height
+                  }px`,
+
+                  zIndex:
+                    activeV2Clip.zIndex +
+                    20,
+                }}
                 className={`
                   absolute
-                  inset-0
 
                   ${
                     canEdit
                       ? "cursor-move"
                       : "cursor-default"
-                  }
-
-                  ${
-                    isSelected(
-                      activeV2Clip
-                    )
-                      ? "z-[14]"
-                      : "z-[10]"
                   }
                 `}
               >
@@ -866,7 +1098,7 @@ export default function PreviewPanel({
                   }
                   muted
                   onLoadedMetadata={
-                    onV2LoadedMetadata
+                    handleV2Metadata
                   }
                   draggable={
                     false
@@ -876,7 +1108,7 @@ export default function PreviewPanel({
                     inset-0
                     w-full
                     h-full
-                    object-contain
+                    object-fill
                     pointer-events-none
                   "
                 />
@@ -886,27 +1118,22 @@ export default function PreviewPanel({
                 ) && (
                   <SelectionOutline
                     label="V2"
-
                     disabled={
                       !canEdit
                     }
-
                     onScaleStart={(
                       event
                     ) =>
                       startScale(
                         event,
-
                         activeV2Clip
                       )
                     }
-
                     onRotateStart={(
                       event
                     ) =>
                       startRotate(
                         event,
-
                         activeV2Clip
                       )
                     }
@@ -915,127 +1142,181 @@ export default function PreviewPanel({
               </div>
             )}
 
-          {/* =============================
-              TEXT
-          ============================= */}
+          {/* =================================
+              MULTIPLE TEXT LAYERS
+          ================================= */}
 
-          {activeTextClip?.kind ===
-            "text" && (
-            <div
-              data-transform-layer
-              onMouseDown={(
-                event
-              ) =>
-                startMove(
-                  event,
-
-                  activeTextClip
-                )
+          {activeTextClips.map(
+            (textClip) => {
+              if (
+                textClip.kind !==
+                "text"
+              ) {
+                return null;
               }
-              style={
-                getClipStyle(
-                  activeTextClip
-                )
-              }
-              className={`
-                absolute
-                inset-0
-                flex
-                items-center
-                justify-center
-                px-8
 
-                ${
-                  canEdit
-                    ? "cursor-move"
-                    : "cursor-default"
-                }
-
-                ${
-                  isSelected(
-                    activeTextClip
-                  )
-                    ? "z-[24]"
-                    : "z-[20]"
-                }
-              `}
-            >
-              <div
-                style={{
-                  color:
-                    activeTextClip
-                      .textStyle
-                      .color,
-
-                  fontSize: `${
-                    activeTextClip
-                      .textStyle
-                      .fontSize
-                  }px`,
-
-                  fontWeight:
-                    activeTextClip
-                      .textStyle
-                      .fontWeight,
-
-                  textAlign:
-                    activeTextClip
-                      .textStyle
-                      .align,
-                }}
-                className="
-                  w-full
-                  whitespace-pre-wrap
-                  break-words
-                  leading-tight
-                  drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]
-                  pointer-events-none
-                "
-              >
-                {
-                  activeTextClip.text
-                }
-              </div>
-
-              {isSelected(
-                activeTextClip
-              ) && (
-                <SelectionOutline
-                  label="T1"
-
-                  disabled={
-                    !canEdit
+              return (
+                <div
+                  key={
+                    textClip.id
                   }
-
-                  onScaleStart={(
+                  data-transform-layer
+                  onMouseDown={(
                     event
                   ) =>
-                    startScale(
+                    startMove(
                       event,
-
-                      activeTextClip
+                      textClip
                     )
                   }
+                  style={{
+                    ...getTransformStyle(
+                      textClip
+                    ),
 
-                  onRotateStart={(
-                    event
-                  ) =>
-                    startRotate(
-                      event,
+                    zIndex:
+                      textClip.zIndex +
+                      20,
+                  }}
+                  className={`
+                    absolute
+                    inline-flex
+                    min-w-[40px]
+                    max-w-[85%]
+                    px-2
+                    py-1
 
-                      activeTextClip
-                    )
-                  }
-                />
-              )}
-            </div>
+                    ${
+                      canEdit
+                        ? "cursor-move"
+                        : "cursor-default"
+                    }
+                  `}
+                >
+                  <div
+                    style={{
+                      color:
+                        textClip
+                          .textStyle
+                          .color,
+
+                      fontSize: `${
+                        textClip
+                          .textStyle
+                          .fontSize
+                      }px`,
+
+                      fontWeight:
+                        textClip
+                          .textStyle
+                          .fontWeight,
+
+                      textAlign:
+                        textClip
+                          .textStyle
+                          .align,
+                    }}
+                    className="
+                      whitespace-pre-wrap
+                      break-words
+                      leading-tight
+                      drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]
+                      pointer-events-none
+                    "
+                  >
+                    {
+                      textClip.text
+                    }
+                  </div>
+
+                  {isSelected(
+                    textClip
+                  ) && (
+                    <SelectionOutline
+                      label="T1"
+                      disabled={
+                        !canEdit
+                      }
+                      onScaleStart={(
+                        event
+                      ) =>
+                        startScale(
+                          event,
+                          textClip
+                        )
+                      }
+                      onRotateStart={(
+                        event
+                      ) =>
+                        startRotate(
+                          event,
+                          textClip
+                        )
+                      }
+                    />
+                  )}
+                </div>
+              );
+            }
           )}
+
+          {/* CENTER X SNAP */}
+
+          {snapGuides.x && (
+            <div
+              className="
+                absolute
+                top-0
+                bottom-0
+                left-1/2
+                z-[200]
+                w-px
+                bg-fuchsia-400
+                shadow-[0_0_6px_rgba(232,121,249,0.8)]
+                pointer-events-none
+              "
+            />
+          )}
+
+          {/* CENTER Y SNAP */}
+
+          {snapGuides.y && (
+            <div
+              className="
+                absolute
+                left-0
+                right-0
+                top-1/2
+                z-[200]
+                h-px
+                bg-fuchsia-400
+                shadow-[0_0_6px_rgba(232,121,249,0.8)]
+                pointer-events-none
+              "
+            />
+          )}
+
+          {/* SAFE AREA */}
+
+          <div
+            className="
+              absolute
+              inset-[8%]
+              border
+              border-dashed
+              border-white/[0.06]
+              rounded
+              pointer-events-none
+              z-[90]
+            "
+          />
 
           {/* EMPTY */}
 
           {!activeV1Clip &&
             !activeV2Clip &&
-            !activeTextClip && (
+            activeTextClips.length ===
+              0 && (
               <div
                 className="
                   absolute
@@ -1047,47 +1328,14 @@ export default function PreviewPanel({
                   text-xs
                 "
               >
-                Move the
-                playhead over a
-                clip
+                Move the playhead
+                over a clip
               </div>
             )}
-
-          {/* CENTER X */}
-
-          <div
-            className="
-              absolute
-              left-1/2
-              top-0
-              bottom-0
-              w-px
-              bg-white/[0.025]
-              pointer-events-none
-              z-[100]
-            "
-          />
-
-          {/* CENTER Y */}
-
-          <div
-            className="
-              absolute
-              top-1/2
-              left-0
-              right-0
-              h-px
-              bg-white/[0.025]
-              pointer-events-none
-              z-[100]
-            "
-          />
         </div>
       </div>
 
-      {/* =================================
-          PLAYBACK
-      ================================= */}
+      {/* PLAYBACK */}
 
       <div
         className="
@@ -1169,18 +1417,13 @@ export default function PreviewPanel({
 
 function SelectionOutline({
   label,
-
   disabled,
-
   onScaleStart,
-
   onRotateStart,
 }: {
-  label:
-    string;
+  label: string;
 
-  disabled:
-    boolean;
+  disabled: boolean;
 
   onScaleStart: (
     event:
@@ -1224,21 +1467,21 @@ function SelectionOutline({
         {label}
       </div>
 
-      {/* =============================
-          ROTATION HANDLE
-      ============================= */}
+      {/* ROTATION LINE */}
 
       <div
         className="
           absolute
           left-1/2
           -translate-x-1/2
-          -top-[31px]
-          h-[31px]
+          -top-[30px]
+          h-[30px]
           w-px
           bg-violet-400
         "
       />
+
+      {/* ROTATION HANDLE */}
 
       <button
         onMouseDown={
@@ -1247,7 +1490,7 @@ function SelectionOutline({
         disabled={
           disabled
         }
-        title="Drag to rotate • Hold Shift for 15° snapping"
+        title="Rotate • Hold Shift for 15° snapping"
         className="
           absolute
           left-1/2
@@ -1266,10 +1509,6 @@ function SelectionOutline({
           disabled:opacity-40
         "
       />
-
-      {/* =============================
-          CORNER HANDLES
-      ============================= */}
 
       <ScaleHandle
         className="
@@ -1332,16 +1571,12 @@ function SelectionOutline({
 
 function ScaleHandle({
   className,
-
   disabled,
-
   onMouseDown,
 }: {
-  className:
-    string;
+  className: string;
 
-  disabled:
-    boolean;
+  disabled: boolean;
 
   onMouseDown: (
     event:

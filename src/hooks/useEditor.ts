@@ -93,22 +93,10 @@ export function useEditor() {
       null
     );
 
-  /*
-    Timeline drag / trim snapshot
-  */
-
   const operationSnapshotRef =
     useRef<
       TimelineClip[] | null
     >(null);
-
-  /*
-    Preview canvas transform snapshot.
-
-    This is what makes:
-    drag / resize / rotate
-    = ONE undo step.
-  */
 
   const previewTransformSnapshotRef =
     useRef<
@@ -230,7 +218,7 @@ export function useEditor() {
   );
 
   /* =====================================
-     KEEP REFS UPDATED
+     KEEP REF UPDATED
   ===================================== */
 
   useEffect(() => {
@@ -284,17 +272,44 @@ export function useEditor() {
       "V2"
     ) ?? null;
 
+  /*
+    Multiple active text layers.
+  */
+
+  const activeTextClips =
+    timelineClips
+      .filter(
+        (clip) =>
+          clip.kind ===
+            "text" &&
+          currentTime >=
+            clip.timelineStart &&
+          currentTime <
+            clip.timelineStart +
+              clip.duration
+      )
+      .sort(
+        (a, b) =>
+          a.zIndex -
+          b.zIndex
+      );
+
+  /*
+    Kept for compatibility with
+    anything still using one text clip.
+  */
+
   const activeTextClip =
-    timelineClips.find(
+    activeTextClips.find(
       (clip) =>
-        clip.kind ===
-          "text" &&
-        currentTime >=
-          clip.timelineStart &&
-        currentTime <
-          clip.timelineStart +
-            clip.duration
-    ) ?? null;
+        clip.id ===
+        selectedClipId
+    ) ??
+    activeTextClips[
+      activeTextClips.length -
+        1
+    ] ??
+    null;
 
   /* =====================================
      HELPERS
@@ -308,6 +323,37 @@ export function useEditor() {
         item.id ===
         mediaId
     );
+
+  const getNextOverlayZIndex =
+    () => {
+      const overlayClips =
+        timelineClipsRef.current.filter(
+          (clip) =>
+            clip.kind ===
+              "text" ||
+            (
+              clip.kind ===
+                "video" &&
+              clip.track ===
+                "V2"
+            )
+        );
+
+      if (
+        !overlayClips.length
+      ) {
+        return 10;
+      }
+
+      return (
+        Math.max(
+          ...overlayClips.map(
+            (clip) =>
+              clip.zIndex
+          )
+        ) + 1
+      );
+    };
 
   const getNextClipOnTrack = (
     track: VideoTrack,
@@ -338,7 +384,6 @@ export function useEditor() {
 
   const pauseAll = () => {
     v1VideoRef.current?.pause();
-
     v2VideoRef.current?.pause();
 
     shouldAutoPlayRef.current =
@@ -457,7 +502,7 @@ export function useEditor() {
   };
 
   /* =====================================
-     IMPORT
+     IMPORT MEDIA
   ===================================== */
 
   const importMedia =
@@ -566,6 +611,11 @@ export function useEditor() {
 
         track,
 
+        zIndex:
+          track === "V1"
+            ? 0
+            : getNextOverlayZIndex(),
+
         timelineStart,
 
         sourceStart: 0,
@@ -645,14 +695,16 @@ export function useEditor() {
         track:
           "T1",
 
+        zIndex:
+          getNextOverlayZIndex(),
+
         timelineStart:
           Math.max(
             0,
             currentTime
           ),
 
-        duration:
-          5,
+        duration: 5,
 
         transform: {
           x: 0,
@@ -817,7 +869,6 @@ export function useEditor() {
 
           Math.min(
             timelineTime,
-
             projectDuration
           )
         );
@@ -901,7 +952,7 @@ export function useEditor() {
     };
 
   /* =====================================
-     SELECT
+     SELECT CLIP
   ===================================== */
 
   const selectClip = (
@@ -1284,7 +1335,7 @@ export function useEditor() {
     };
 
   /* =====================================
-     NORMAL PROPERTY TRANSFORM
+     PROPERTY TRANSFORMS
   ===================================== */
 
   const updateSelectedClipTransform =
@@ -1385,11 +1436,6 @@ export function useEditor() {
       clip.id
     );
 
-    /*
-      Only take snapshot once
-      at start of gesture.
-    */
-
     if (
       !previewTransformSnapshotRef.current
     ) {
@@ -1430,12 +1476,6 @@ export function useEditor() {
               }
             : clip
       );
-
-    /*
-      Important:
-      ref updates immediately,
-      so mouseup sees latest state.
-    */
 
     timelineClipsRef.current =
       next;
@@ -1582,6 +1622,158 @@ export function useEditor() {
       next
     );
   };
+
+  /* =====================================
+     LAYER ORDER
+  ===================================== */
+
+  const moveSelectedLayer = (
+    direction:
+      | "forward"
+      | "backward"
+  ) => {
+    if (
+      !selectedClipId ||
+      tracksLocked
+    ) {
+      return;
+    }
+
+    const selected =
+      timelineClipsRef.current.find(
+        (clip) =>
+          clip.id ===
+          selectedClipId
+      );
+
+    if (!selected) {
+      return;
+    }
+
+    /*
+      V1 is always base footage.
+    */
+
+    if (
+      selected.kind ===
+        "video" &&
+      selected.track ===
+        "V1"
+    ) {
+      return;
+    }
+
+    const overlays =
+      timelineClipsRef.current
+        .filter(
+          (clip) =>
+            clip.kind ===
+              "text" ||
+            (
+              clip.kind ===
+                "video" &&
+              clip.track ===
+                "V2"
+            )
+        )
+        .sort(
+          (a, b) =>
+            a.zIndex -
+            b.zIndex
+        );
+
+    const index =
+      overlays.findIndex(
+        (clip) =>
+          clip.id ===
+          selectedClipId
+      );
+
+    if (
+      index === -1
+    ) {
+      return;
+    }
+
+    const targetIndex =
+      direction ===
+        "forward"
+        ? index + 1
+        : index - 1;
+
+    if (
+      targetIndex < 0 ||
+      targetIndex >=
+        overlays.length
+    ) {
+      return;
+    }
+
+    const target =
+      overlays[
+        targetIndex
+      ];
+
+    pushHistory();
+
+    const selectedZ =
+      selected.zIndex;
+
+    const targetZ =
+      target.zIndex;
+
+    const next =
+      timelineClipsRef.current.map(
+        (clip) => {
+          if (
+            clip.id ===
+            selected.id
+          ) {
+            return {
+              ...clip,
+
+              zIndex:
+                targetZ,
+            };
+          }
+
+          if (
+            clip.id ===
+            target.id
+          ) {
+            return {
+              ...clip,
+
+              zIndex:
+                selectedZ,
+            };
+          }
+
+          return clip;
+        }
+      );
+
+    timelineClipsRef.current =
+      next;
+
+    setTimelineClips(
+      next
+    );
+  };
+
+  const bringSelectedForward =
+    () => {
+      moveSelectedLayer(
+        "forward"
+      );
+    };
+
+  const sendSelectedBackward =
+    () => {
+      moveSelectedLayer(
+        "backward"
+      );
+    };
 
   /* =====================================
      SPLIT
@@ -1918,7 +2110,6 @@ export function useEditor() {
     }
 
     event.stopPropagation();
-
     event.preventDefault();
 
     pauseAll();
@@ -1991,7 +2182,7 @@ export function useEditor() {
   };
 
   /* =====================================
-     GLOBAL TIMELINE MOUSE
+     GLOBAL TIMELINE MOUSE EVENTS
   ===================================== */
 
   useEffect(() => {
@@ -2350,7 +2541,7 @@ export function useEditor() {
   ]);
 
   /* =====================================
-     FRAMES
+     VIDEO FRAMES
   ===================================== */
 
   const getFrames = (
@@ -2600,7 +2791,6 @@ export function useEditor() {
         event.preventDefault();
 
         redo();
-
         return;
       }
 
@@ -2612,7 +2802,6 @@ export function useEditor() {
         event.preventDefault();
 
         undo();
-
         return;
       }
 
@@ -2623,7 +2812,6 @@ export function useEditor() {
         event.preventDefault();
 
         splitAtPlayhead();
-
         return;
       }
 
@@ -2634,7 +2822,6 @@ export function useEditor() {
         event.preventDefault();
 
         void togglePlay();
-
         return;
       }
 
@@ -2709,6 +2896,7 @@ export function useEditor() {
     activeV2Clip,
 
     activeTextClip,
+    activeTextClips,
 
     v1Visible,
     setV1Visible,
@@ -2729,51 +2917,40 @@ export function useEditor() {
     importMedia,
 
     addMediaToTrack,
-
     addTextClip,
 
     selectClip,
-
     seekTimelineFromMouse,
 
     togglePlay,
 
     handleV1TimeUpdate,
-
     handleV1LoadedMetadata,
-
     handleV2LoadedMetadata,
 
     updateSelectedClipTransform,
-
     resetSelectedClipTransform,
 
-    /*
-      NEW
-    */
-
     beginPreviewTransform,
-
     updatePreviewTransform,
-
     commitPreviewTransform,
 
     updateSelectedText,
 
+    bringSelectedForward,
+    sendSelectedBackward,
+
     splitAtPlayhead,
 
     deleteSelectedClip,
-
     rippleDeleteSelectedClip,
 
     startClipDrag,
-
     startTrim,
 
     startTrackResize,
 
     getFrames,
-
     getWaveform,
 
     undo,
