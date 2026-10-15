@@ -1,5 +1,15 @@
 "use client";
 
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  GripHorizontal,
+} from "lucide-react";
+
 import TopBar from "./TopBar";
 import ToolSidebar from "./ToolSidebar";
 import MediaPanel from "./MediaPanel";
@@ -12,12 +22,179 @@ import {
   useEditor,
 } from "@/hooks/useEditor";
 
+import {
+  DEFAULT_TIMELINE_HEIGHT,
+  MAX_TIMELINE_HEIGHT,
+  MIN_TIMELINE_HEIGHT,
+} from "@/constants/editor";
+
 export default function Editor() {
   const editor =
     useEditor();
 
+  const [
+    timelineHeight,
+    setTimelineHeight,
+  ] = useState(
+    DEFAULT_TIMELINE_HEIGHT
+  );
+
+  const resizeRef =
+    useRef<{
+      startY: number;
+
+      startHeight: number;
+    } | null>(
+      null
+    );
+
+  /* ---------------------------------------
+     WORKSPACE RESIZE
+  --------------------------------------- */
+
+  const startWorkspaceResize = (
+    event:
+      React.MouseEvent
+  ) => {
+    event.preventDefault();
+
+    resizeRef.current =
+      {
+        startY:
+          event.clientY,
+
+        startHeight:
+          timelineHeight,
+      };
+
+    document.body.style.cursor =
+      "row-resize";
+
+    document.body.style.userSelect =
+      "none";
+  };
+
+  const resetWorkspaceResize =
+    () => {
+      setTimelineHeight(
+        DEFAULT_TIMELINE_HEIGHT
+      );
+    };
+
+  useEffect(() => {
+    const handleMouseMove = (
+      event:
+        MouseEvent
+    ) => {
+      const resize =
+        resizeRef.current;
+
+      if (!resize) {
+        return;
+      }
+
+      /*
+        Mouse upwards = timeline gets taller.
+        Mouse downwards = timeline gets shorter.
+      */
+
+      const delta =
+        resize.startY -
+        event.clientY;
+
+      const viewportLimit =
+        Math.max(
+          MIN_TIMELINE_HEIGHT,
+
+          window.innerHeight -
+            260
+        );
+
+      const maxHeight =
+        Math.min(
+          MAX_TIMELINE_HEIGHT,
+
+          viewportLimit
+        );
+
+      const nextHeight =
+        Math.max(
+          MIN_TIMELINE_HEIGHT,
+
+          Math.min(
+            maxHeight,
+
+            resize.startHeight +
+              delta
+          )
+        );
+
+      setTimelineHeight(
+        nextHeight
+      );
+    };
+
+    const handleMouseUp =
+      () => {
+        if (
+          !resizeRef.current
+        ) {
+          return;
+        }
+
+        resizeRef.current =
+          null;
+
+        document.body.style.cursor =
+          "";
+
+        document.body.style.userSelect =
+          "";
+      };
+
+    window.addEventListener(
+      "mousemove",
+      handleMouseMove
+    );
+
+    window.addEventListener(
+      "mouseup",
+      handleMouseUp
+    );
+
+    return () => {
+      window.removeEventListener(
+        "mousemove",
+        handleMouseMove
+      );
+
+      window.removeEventListener(
+        "mouseup",
+        handleMouseUp
+      );
+
+      document.body.style.cursor =
+        "";
+
+      document.body.style.userSelect =
+        "";
+    };
+  }, [
+    timelineHeight,
+  ]);
+
   return (
-    <main className="h-screen overflow-hidden bg-[#090B0F] text-[#F4F4F5] select-none">
+    <main
+      className="
+        h-screen
+        overflow-hidden
+        bg-[#090B0F]
+        text-[#F4F4F5]
+        select-none
+      "
+    >
+      {/* FILE INPUT */}
+
       <input
         ref={
           editor.fileInputRef
@@ -30,6 +207,8 @@ export default function Editor() {
         }
         className="hidden"
       />
+
+      {/* TOP BAR */}
 
       <TopBar
         canUndo={
@@ -46,13 +225,29 @@ export default function Editor() {
         }
       />
 
-      <div className="flex h-[calc(100vh-56px)] flex-col">
-        <div className="flex flex-1 min-h-0">
+      <div
+        className="
+          flex
+          h-[calc(100vh-56px)]
+          flex-col
+        "
+      >
+        {/* MAIN WORKSPACE */}
+
+        <div
+          className="
+            flex
+            flex-1
+            min-h-0
+          "
+        >
           <ToolSidebar
             onAddText={
               editor.addTextClip
             }
           />
+
+          {/* MEDIA */}
 
           <MediaPanel
             mediaItems={
@@ -71,6 +266,8 @@ export default function Editor() {
               editor.addMediaToTrack
             }
           />
+
+          {/* PREVIEW */}
 
           <PreviewPanel
             v1VideoRef={
@@ -126,6 +323,8 @@ export default function Editor() {
             }
           />
 
+          {/* PROPERTIES */}
+
           <PropertiesPanel
             selectedClip={
               editor.selectedClip
@@ -145,7 +344,73 @@ export default function Editor() {
           />
         </div>
 
+        {/* ----------------------------------
+            PREVIEW / TIMELINE DIVIDER
+        ---------------------------------- */}
+
+        <div
+          onMouseDown={
+            startWorkspaceResize
+          }
+          onDoubleClick={
+            resetWorkspaceResize
+          }
+          title="Drag to resize timeline • Double-click to reset"
+          className="
+            relative
+            h-[8px]
+            shrink-0
+            cursor-row-resize
+            bg-[#11151B]
+            border-y
+            border-[#20252D]
+            hover:bg-violet-500/10
+            transition
+            z-[80]
+            group
+          "
+        >
+          <div
+            className="
+              absolute
+              inset-x-0
+              top-1/2
+              -translate-y-1/2
+              flex
+              items-center
+              justify-center
+              pointer-events-none
+            "
+          >
+            <div
+              className="
+                h-[3px]
+                px-3
+                rounded-full
+                bg-[#272D36]
+                group-hover:bg-violet-400/40
+                transition
+                flex
+                items-center
+              "
+            >
+              <GripHorizontal
+                size={18}
+                className="
+                  text-white/20
+                  group-hover:text-violet-200/80
+                "
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* TIMELINE */}
+
         <Timeline
+          height={
+            timelineHeight
+          }
           clips={
             editor.timelineClips
           }

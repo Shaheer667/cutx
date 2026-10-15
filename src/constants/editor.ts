@@ -16,3 +16,11 @@ export const MIN_TRACK_HEIGHT = 44;
 export const MAX_TRACK_HEIGHT = 180;
 
 export const TIMELINE_LABEL_WIDTH = 88;
+
+/* Workspace */
+
+export const DEFAULT_TIMELINE_HEIGHT = 290;
+
+export const MIN_TIMELINE_HEIGHT = 180;
+
+export const MAX_TIMELINE_HEIGHT = 520;

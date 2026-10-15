@@ -33,6 +33,9 @@ type Props = {
   zoom:
     number;
 
+  height:
+    number;
+
   v1Visible:
     boolean;
 
@@ -145,6 +148,7 @@ export default function Timeline({
   projectDuration,
   pixelsPerSecond,
   zoom,
+  height,
   v1Visible,
   v2Visible,
   audioMuted,
@@ -182,7 +186,22 @@ export default function Timeline({
     pixelsPerSecond;
 
   return (
-    <section className="h-[290px] min-h-[290px] shrink-0 border-t border-[#222630] bg-[#0D1015] overflow-hidden flex flex-col">
+    <section
+      className="
+        shrink-0
+        border-t
+        border-[#222630]
+        bg-[#0D1015]
+        overflow-hidden
+        flex
+        flex-col
+      "
+      style={{
+        height: `${height}px`,
+      }}
+    >
+      {/* TOOLBAR */}
+
       <TimelineToolbar
         selectedClipId={
           selectedClipId
@@ -213,6 +232,8 @@ export default function Timeline({
         }
       />
 
+      {/* RULER */}
+
       <TimelineRuler
         projectDuration={
           projectDuration
@@ -221,6 +242,8 @@ export default function Timeline({
           pixelsPerSecond
         }
       />
+
+      {/* SCROLL AREA */}
 
       <div className="flex-1 min-h-0 overflow-auto">
         <div
@@ -235,7 +258,13 @@ export default function Timeline({
           {/* PLAYHEAD */}
 
           <div
-            className="absolute top-0 bottom-0 z-50 pointer-events-none"
+            className="
+              absolute
+              top-0
+              bottom-0
+              z-50
+              pointer-events-none
+            "
             style={{
               left: `${
                 88 +
@@ -245,7 +274,18 @@ export default function Timeline({
           >
             <div className="w-px h-full bg-violet-400" />
 
-            <div className="absolute -top-[3px] -left-[4px] w-2.5 h-2.5 bg-violet-400 rotate-45 rounded-sm" />
+            <div
+              className="
+                absolute
+                -top-[3px]
+                -left-[4px]
+                w-2.5
+                h-2.5
+                bg-violet-400
+                rotate-45
+                rounded-sm
+              "
+            />
           </div>
 
           {/* V2 */}
@@ -299,7 +339,6 @@ export default function Timeline({
             ) =>
               onTrackResize(
                 event,
-
                 "V2"
               )
             }
@@ -356,7 +395,6 @@ export default function Timeline({
             ) =>
               onTrackResize(
                 event,
-
                 "V1"
               )
             }
@@ -441,7 +479,6 @@ export default function Timeline({
             ) =>
               onTrackResize(
                 event,
-
                 "A1"
               )
             }
@@ -462,13 +499,29 @@ function TrackResizer({
 }) {
   return (
     <div className="h-[6px] flex bg-[#11151B]">
-      <div className="w-[88px] shrink-0 border-r border-[#222630] bg-[#101319]" />
+      <div
+        className="
+          w-[88px]
+          shrink-0
+          border-r
+          border-[#222630]
+          bg-[#101319]
+        "
+      />
 
       <div
         onMouseDown={
           onMouseDown
         }
-        className="flex-1 cursor-row-resize hover:bg-violet-500/15 transition flex items-center justify-center"
+        className="
+          flex-1
+          cursor-row-resize
+          hover:bg-violet-500/15
+          transition
+          flex
+          items-center
+          justify-center
+        "
       >
         <GripHorizontal
           size={12}
