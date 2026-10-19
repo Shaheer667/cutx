@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import {
+  ClipAudioSettings,
   DragState,
   MediaItem,
   TimelineClip,
@@ -224,18 +225,8 @@ export function useEditor() {
   useEffect(() => {
     timelineClipsRef.current =
       timelineClips;
-  }, [timelineClips]);
-
-  useEffect(() => {
-    if (
-      v1VideoRef.current
-    ) {
-      v1VideoRef.current.muted =
-        audioMuted;
-    }
   }, [
-    audioMuted,
-    activeV1Media,
+    timelineClips,
   ]);
 
   /* =====================================
@@ -249,7 +240,10 @@ export function useEditor() {
 
   const pixelsPerSecond =
     BASE_PIXELS_PER_SECOND *
-    (zoom / 100);
+    (
+      zoom /
+      100
+    );
 
   const selectedClip =
     timelineClips.find(
@@ -272,10 +266,6 @@ export function useEditor() {
       "V2"
     ) ?? null;
 
-  /*
-    Multiple active text layers.
-  */
-
   const activeTextClips =
     timelineClips
       .filter(
@@ -294,11 +284,6 @@ export function useEditor() {
           b.zIndex
       );
 
-  /*
-    Kept for compatibility with
-    anything still using one text clip.
-  */
-
   const activeTextClip =
     activeTextClips.find(
       (clip) =>
@@ -316,7 +301,8 @@ export function useEditor() {
   ===================================== */
 
   const getMediaById = (
-    mediaId: string
+    mediaId:
+      string
   ) =>
     mediaItems.find(
       (item) =>
@@ -356,9 +342,14 @@ export function useEditor() {
     };
 
   const getNextClipOnTrack = (
-    track: VideoTrack,
-    time: number,
-    excludedId?: string
+    track:
+      VideoTrack,
+
+    time:
+      number,
+
+    excludedId?:
+      string
   ) =>
     [
       ...timelineClipsRef.current,
@@ -374,7 +365,8 @@ export function useEditor() {
           clip.id !==
             excludedId &&
           clip.timelineStart >=
-            time - 0.02
+            time -
+              0.02
       )
       .sort(
         (a, b) =>
@@ -382,22 +374,27 @@ export function useEditor() {
           b.timelineStart
       )[0];
 
-  const pauseAll = () => {
-    v1VideoRef.current?.pause();
-    v2VideoRef.current?.pause();
+  const pauseAll =
+    () => {
+      v1VideoRef.current?.pause();
 
-    shouldAutoPlayRef.current =
-      false;
+      v2VideoRef.current?.pause();
 
-    setIsPlaying(false);
-  };
+      shouldAutoPlayRef.current =
+        false;
+
+      setIsPlaying(
+        false
+      );
+    };
 
   /* =====================================
      HISTORY
   ===================================== */
 
   const pushHistory = (
-    snapshot?: TimelineClip[]
+    snapshot?:
+      TimelineClip[]
   ) => {
     const state =
       snapshot ??
@@ -405,104 +402,122 @@ export function useEditor() {
         timelineClipsRef.current
       );
 
-    setPast((prev) => [
-      ...prev.slice(
-        -(MAX_HISTORY - 1)
-      ),
+    setPast(
+      (prev) => [
+        ...prev.slice(
+          -(
+            MAX_HISTORY -
+            1
+          )
+        ),
 
-      cloneClips(
-        state
-      ),
-    ]);
+        cloneClips(
+          state
+        ),
+      ]
+    );
 
     setFuture([]);
   };
 
-  const undo = () => {
-    if (!past.length) {
-      return;
-    }
+  const undo =
+    () => {
+      if (
+        !past.length
+      ) {
+        return;
+      }
 
-    const previous =
-      past[
-        past.length - 1
-      ];
+      const previous =
+        past[
+          past.length -
+            1
+        ];
 
-    setFuture(
-      (prev) => [
-        cloneClips(
-          timelineClipsRef.current
-        ),
+      setFuture(
+        (prev) => [
+          cloneClips(
+            timelineClipsRef.current
+          ),
 
-        ...prev,
-      ]
-    );
-
-    setPast((prev) =>
-      prev.slice(
-        0,
-        -1
-      )
-    );
-
-    const next =
-      cloneClips(
-        previous
+          ...prev,
+        ]
       );
 
-    timelineClipsRef.current =
-      next;
+      setPast(
+        (prev) =>
+          prev.slice(
+            0,
+            -1
+          )
+      );
 
-    setTimelineClips(
-      next
-    );
+      const next =
+        cloneClips(
+          previous
+        );
 
-    setSelectedClipId(
-      null
-    );
+      timelineClipsRef.current =
+        next;
 
-    pauseAll();
-  };
+      setTimelineClips(
+        next
+      );
 
-  const redo = () => {
-    if (!future.length) {
-      return;
-    }
+      setSelectedClipId(
+        null
+      );
 
-    const next =
-      future[0];
+      pauseAll();
+    };
 
-    setPast((prev) => [
-      ...prev,
+  const redo =
+    () => {
+      if (
+        !future.length
+      ) {
+        return;
+      }
 
-      cloneClips(
-        timelineClipsRef.current
-      ),
-    ]);
+      const next =
+        future[0];
 
-    setFuture((prev) =>
-      prev.slice(1)
-    );
+      setPast(
+        (prev) => [
+          ...prev,
 
-    const restored =
-      cloneClips(next);
+          cloneClips(
+            timelineClipsRef.current
+          ),
+        ]
+      );
 
-    timelineClipsRef.current =
-      restored;
+      setFuture(
+        (prev) =>
+          prev.slice(1)
+      );
 
-    setTimelineClips(
-      restored
-    );
+      const restored =
+        cloneClips(
+          next
+        );
 
-    setSelectedClipId(
-      null
-    );
+      timelineClipsRef.current =
+        restored;
 
-    pauseAll();
-  };
+      setTimelineClips(
+        restored
+      );
+
+      setSelectedClipId(
+        null
+      );
+
+      pauseAll();
+    };
 
   /* =====================================
-     IMPORT MEDIA
+     IMPORT
   ===================================== */
 
   const importMedia =
@@ -513,7 +528,9 @@ export function useEditor() {
       const files =
         event.target.files;
 
-      if (!files?.length) {
+      if (
+        !files?.length
+      ) {
         return;
       }
 
@@ -578,13 +595,17 @@ export function useEditor() {
   ===================================== */
 
   const addMediaToTrack = (
-    media: MediaItem,
-    track: VideoTrack
+    media:
+      MediaItem,
+
+    track:
+      VideoTrack
   ) => {
     pushHistory();
 
     const timelineStart =
-      track === "V1"
+      track ===
+      "V1"
         ? getTrackEnd(
             timelineClipsRef.current,
             "V1"
@@ -612,13 +633,15 @@ export function useEditor() {
         track,
 
         zIndex:
-          track === "V1"
+          track ===
+          "V1"
             ? 0
             : getNextOverlayZIndex(),
 
         timelineStart,
 
-        sourceStart: 0,
+        sourceStart:
+          0,
 
         duration:
           media.duration,
@@ -626,9 +649,26 @@ export function useEditor() {
         transform: {
           x: 0,
           y: 0,
-          scale: 100,
-          rotation: 0,
-          opacity: 100,
+          scale:
+            100,
+          rotation:
+            0,
+          opacity:
+            100,
+        },
+
+        audio: {
+          volume:
+            100,
+
+          muted:
+            false,
+
+          fadeIn:
+            0,
+
+          fadeOut:
+            0,
         },
       };
 
@@ -649,7 +689,8 @@ export function useEditor() {
     );
 
     if (
-      track === "V1"
+      track ===
+      "V1"
     ) {
       activeV1ClipIdRef.current =
         clip.id;
@@ -671,83 +712,92 @@ export function useEditor() {
      ADD TEXT
   ===================================== */
 
-  const addTextClip = () => {
-    if (
-      tracksLocked
-    ) {
-      return;
-    }
+  const addTextClip =
+    () => {
+      if (
+        tracksLocked
+      ) {
+        return;
+      }
 
-    pushHistory();
+      pushHistory();
 
-    const clip:
-      TimelineClip =
-      {
-        kind:
-          "text",
+      const clip:
+        TimelineClip =
+        {
+          kind:
+            "text",
 
-        id:
-          crypto.randomUUID(),
+          id:
+            crypto.randomUUID(),
 
-        name:
-          "Text",
+          name:
+            "Text",
 
-        track:
-          "T1",
+          track:
+            "T1",
 
-        zIndex:
-          getNextOverlayZIndex(),
+          zIndex:
+            getNextOverlayZIndex(),
 
-        timelineStart:
-          Math.max(
-            0,
-            currentTime
-          ),
+          timelineStart:
+            Math.max(
+              0,
+              currentTime
+            ),
 
-        duration: 5,
+          duration:
+            5,
 
-        transform: {
-          x: 0,
-          y: 0,
-          scale: 100,
-          rotation: 0,
-          opacity: 100,
-        },
+          transform: {
+            x: 0,
+            y: 0,
+            scale:
+              100,
+            rotation:
+              0,
+            opacity:
+              100,
+          },
 
-        text:
-          "Add text",
+          text:
+            "Add text",
 
-        textStyle: {
-          fontSize: 48,
-          color:
-            "#FFFFFF",
-          align:
-            "center",
-          fontWeight:
-            700,
-        },
-      };
+          textStyle: {
+            fontSize:
+              48,
 
-    const next = [
-      ...timelineClipsRef.current,
-      clip,
-    ];
+            color:
+              "#FFFFFF",
 
-    timelineClipsRef.current =
-      next;
+            align:
+              "center",
 
-    setTimelineClips(
-      next
-    );
+            fontWeight:
+              700,
+          },
+        };
 
-    setSelectedClipId(
-      clip.id
-    );
+      const next = [
+        ...timelineClipsRef.current,
+        clip,
+      ];
 
-    setCurrentTime(
-      clip.timelineStart
-    );
-  };
+      timelineClipsRef.current =
+        next;
+
+      setTimelineClips(
+        next
+      );
+
+      setSelectedClipId(
+        clip.id
+      );
+
+      setCurrentTime(
+        clip.timelineStart
+      );
+    };
 
   /* =====================================
      V2 SYNC
@@ -780,7 +830,9 @@ export function useEditor() {
         v2VideoRef.current
           ?.pause();
 
-        if (!clip) {
+        if (
+          !clip
+        ) {
           setActiveV2Media(
             null
           );
@@ -794,7 +846,9 @@ export function useEditor() {
           clip.mediaId
         );
 
-      if (!media) {
+      if (
+        !media
+      ) {
         return;
       }
 
@@ -824,7 +878,9 @@ export function useEditor() {
       const video =
         v2VideoRef.current;
 
-      if (!video) {
+      if (
+        !video
+      ) {
         return;
       }
 
@@ -835,7 +891,8 @@ export function useEditor() {
         Math.abs(
           video.currentTime -
             targetSourceTime
-        ) > 0.12
+        ) >
+        0.12
       ) {
         video.currentTime =
           targetSourceTime;
@@ -889,13 +946,17 @@ export function useEditor() {
           "V1"
         );
 
-      if (v1Clip) {
+      if (
+        v1Clip
+      ) {
         const media =
           getMediaById(
             v1Clip.mediaId
           );
 
-        if (media) {
+        if (
+          media
+        ) {
           activeV1ClipIdRef.current =
             v1Clip.id;
 
@@ -920,9 +981,6 @@ export function useEditor() {
           ) {
             v1VideoRef.current.currentTime =
               targetSourceTime;
-
-            v1VideoRef.current.muted =
-              audioMuted;
 
             if (
               autoplay
@@ -952,7 +1010,7 @@ export function useEditor() {
     };
 
   /* =====================================
-     SELECT CLIP
+     SELECT
   ===================================== */
 
   const selectClip = (
@@ -972,7 +1030,7 @@ export function useEditor() {
   };
 
   /* =====================================
-     TIMELINE CLICK
+     TIMELINE SEEK
   ===================================== */
 
   const seekTimelineFromMouse = (
@@ -1015,7 +1073,9 @@ export function useEditor() {
         return;
       }
 
-      if (isPlaying) {
+      if (
+        isPlaying
+      ) {
         pauseAll();
         return;
       }
@@ -1027,7 +1087,8 @@ export function useEditor() {
         startTime >=
         projectDuration
       ) {
-        startTime = 0;
+        startTime =
+          0;
       }
 
       let clip =
@@ -1039,7 +1100,9 @@ export function useEditor() {
           "V1"
         );
 
-      if (!clip) {
+      if (
+        !clip
+      ) {
         clip =
           getNextClipOnTrack(
             "V1",
@@ -1047,7 +1110,9 @@ export function useEditor() {
           );
       }
 
-      if (!clip) {
+      if (
+        !clip
+      ) {
         return;
       }
 
@@ -1084,7 +1149,9 @@ export function useEditor() {
       const video =
         v1VideoRef.current;
 
-      if (!video) {
+      if (
+        !video
+      ) {
         return;
       }
 
@@ -1101,7 +1168,9 @@ export function useEditor() {
               activeV1ClipIdRef.current
         );
 
-      if (!clip) {
+      if (
+        !clip
+      ) {
         clip =
           getClipAtTime(
             timelineClipsRef.current,
@@ -1112,7 +1181,9 @@ export function useEditor() {
           );
       }
 
-      if (!clip) {
+      if (
+        !clip
+      ) {
         return;
       }
 
@@ -1131,7 +1202,8 @@ export function useEditor() {
 
       if (
         timelineTime <
-        clipEnd - 0.04
+        clipEnd -
+          0.04
       ) {
         setCurrentTime(
           Math.min(
@@ -1155,7 +1227,9 @@ export function useEditor() {
           clip.id
         );
 
-      if (!nextClip) {
+      if (
+        !nextClip
+      ) {
         pauseAll();
 
         setCurrentTime(
@@ -1170,7 +1244,9 @@ export function useEditor() {
           nextClip.mediaId
         );
 
-      if (!nextMedia) {
+      if (
+        !nextMedia
+      ) {
         pauseAll();
         return;
       }
@@ -1218,7 +1294,9 @@ export function useEditor() {
       const video =
         v1VideoRef.current;
 
-      if (!video) {
+      if (
+        !video
+      ) {
         return;
       }
 
@@ -1235,7 +1313,9 @@ export function useEditor() {
               activeV1ClipIdRef.current
         );
 
-      if (!clip) {
+      if (
+        !clip
+      ) {
         clip =
           getClipAtTime(
             timelineClipsRef.current,
@@ -1246,7 +1326,9 @@ export function useEditor() {
           );
       }
 
-      if (!clip) {
+      if (
+        !clip
+      ) {
         return;
       }
 
@@ -1258,9 +1340,6 @@ export function useEditor() {
           currentTime -
             clip.timelineStart
         );
-
-      video.muted =
-        audioMuted;
 
       if (
         shouldAutoPlayRef.current ||
@@ -1277,7 +1356,9 @@ export function useEditor() {
       const video =
         v2VideoRef.current;
 
-      if (!video) {
+      if (
+        !video
+      ) {
         return;
       }
 
@@ -1294,7 +1375,9 @@ export function useEditor() {
               activeV2ClipIdRef.current
         );
 
-      if (!clip) {
+      if (
+        !clip
+      ) {
         clip =
           getClipAtTime(
             timelineClipsRef.current,
@@ -1305,7 +1388,9 @@ export function useEditor() {
           );
       }
 
-      if (!clip) {
+      if (
+        !clip
+      ) {
         return;
       }
 
@@ -1335,7 +1420,7 @@ export function useEditor() {
     };
 
   /* =====================================
-     PROPERTY TRANSFORMS
+     TRANSFORM
   ===================================== */
 
   const updateSelectedClipTransform =
@@ -1400,9 +1485,12 @@ export function useEditor() {
                   transform: {
                     x: 0,
                     y: 0,
-                    scale: 100,
-                    rotation: 0,
-                    opacity: 100,
+                    scale:
+                      100,
+                    rotation:
+                      0,
+                    opacity:
+                      100,
                   },
                 }
               : clip
@@ -1490,7 +1578,9 @@ export function useEditor() {
       const snapshot =
         previewTransformSnapshotRef.current;
 
-      if (!snapshot) {
+      if (
+        !snapshot
+      ) {
         return;
       }
 
@@ -1502,7 +1592,9 @@ export function useEditor() {
           timelineClipsRef.current
         );
 
-      if (changed) {
+      if (
+        changed
+      ) {
         pushHistory(
           snapshot
         );
@@ -1513,7 +1605,148 @@ export function useEditor() {
     };
 
   /* =====================================
-     TEXT PROPERTIES
+     AUDIO SETTINGS
+  ===================================== */
+
+  const updateSelectedAudio = (
+    patch:
+      Partial<
+        ClipAudioSettings
+      >
+  ) => {
+    if (
+      !selectedClipId ||
+      tracksLocked
+    ) {
+      return;
+    }
+
+    const selected =
+      timelineClipsRef.current.find(
+        (clip) =>
+          clip.id ===
+          selectedClipId
+      );
+
+    if (
+      !selected ||
+      selected.kind !==
+        "video"
+    ) {
+      return;
+    }
+
+    pushHistory();
+
+    const next =
+      timelineClipsRef.current.map(
+        (clip) => {
+          if (
+            clip.id !==
+              selectedClipId ||
+            clip.kind !==
+              "video"
+          ) {
+            return clip;
+          }
+
+          const currentAudio =
+            clip.audio ?? {
+              volume:
+                100,
+
+              muted:
+                false,
+
+              fadeIn:
+                0,
+
+              fadeOut:
+                0,
+            };
+
+          return {
+            ...clip,
+
+            audio: {
+              ...currentAudio,
+              ...patch,
+            },
+          };
+        }
+      );
+
+    timelineClipsRef.current =
+      next;
+
+    setTimelineClips(
+      next
+    );
+  };
+
+  const resetSelectedAudio =
+    () => {
+      if (
+        !selectedClipId ||
+        tracksLocked
+      ) {
+        return;
+      }
+
+      const selected =
+        timelineClipsRef.current.find(
+          (clip) =>
+            clip.id ===
+            selectedClipId
+        );
+
+      if (
+        !selected ||
+        selected.kind !==
+          "video"
+      ) {
+        return;
+      }
+
+      pushHistory();
+
+      const next =
+        timelineClipsRef.current.map(
+          (clip) =>
+            clip.id ===
+              selectedClipId &&
+            clip.kind ===
+              "video"
+              ? {
+                  ...clip,
+
+                  audio: {
+                    volume:
+                      100,
+
+                    muted:
+                      false,
+
+                    fadeIn:
+                      0,
+
+                    fadeOut:
+                      0,
+                  },
+                }
+              : clip
+        );
+
+      timelineClipsRef.current =
+        next;
+
+      setTimelineClips(
+        next
+      );
+    };
+
+  /* =====================================
+     TEXT
   ===================================== */
 
   const updateSelectedText = (
@@ -1646,13 +1879,11 @@ export function useEditor() {
           selectedClipId
       );
 
-    if (!selected) {
+    if (
+      !selected
+    ) {
       return;
     }
-
-    /*
-      V1 is always base footage.
-    */
 
     if (
       selected.kind ===
@@ -1690,7 +1921,8 @@ export function useEditor() {
       );
 
     if (
-      index === -1
+      index ===
+      -1
     ) {
       return;
     }
@@ -1702,7 +1934,8 @@ export function useEditor() {
         : index - 1;
 
     if (
-      targetIndex < 0 ||
+      targetIndex <
+        0 ||
       targetIndex >=
         overlays.length
     ) {
@@ -1762,18 +1995,16 @@ export function useEditor() {
   };
 
   const bringSelectedForward =
-    () => {
+    () =>
       moveSelectedLayer(
         "forward"
       );
-    };
 
   const sendSelectedBackward =
-    () => {
+    () =>
       moveSelectedLayer(
         "backward"
       );
-    };
 
   /* =====================================
      SPLIT
@@ -1818,22 +2049,20 @@ export function useEditor() {
 
           getClipAtTime(
             timelineClipsRef.current,
-
             currentTime,
-
             "V2"
           ) ??
 
           getClipAtTime(
             timelineClipsRef.current,
-
             currentTime,
-
             "V1"
           );
       }
 
-      if (!clip) {
+      if (
+        !clip
+      ) {
         return;
       }
 
@@ -1858,15 +2087,46 @@ export function useEditor() {
 
       const left:
         TimelineClip =
-        {
-          ...clip,
+        clip.kind ===
+        "video"
+          ? {
+              ...clip,
 
-          id:
-            crypto.randomUUID(),
+              id:
+                crypto.randomUUID(),
 
-          duration:
-            leftDuration,
-        };
+              duration:
+                leftDuration,
+
+              audio: {
+                ...clip.audio,
+
+                fadeOut:
+                  Math.min(
+                    clip.audio
+                      .fadeOut,
+
+                    leftDuration
+                  ),
+
+                fadeIn:
+                  Math.min(
+                    clip.audio
+                      .fadeIn,
+
+                    leftDuration
+                  ),
+              },
+            }
+          : {
+              ...clip,
+
+              id:
+                crypto.randomUUID(),
+
+              duration:
+                leftDuration,
+            };
 
       const right:
         TimelineClip =
@@ -1887,6 +2147,26 @@ export function useEditor() {
 
               duration:
                 rightDuration,
+
+              audio: {
+                ...clip.audio,
+
+                fadeIn:
+                  Math.min(
+                    clip.audio
+                      .fadeIn,
+
+                    rightDuration
+                  ),
+
+                fadeOut:
+                  Math.min(
+                    clip.audio
+                      .fadeOut,
+
+                    rightDuration
+                  ),
+              },
             }
           : {
               ...clip,
@@ -1910,7 +2190,9 @@ export function useEditor() {
                   left,
                   right,
                 ]
-              : [item]
+              : [
+                  item,
+                ]
         );
 
       timelineClipsRef.current =
@@ -1993,7 +2275,9 @@ export function useEditor() {
             selectedClipId
         );
 
-      if (!deleted) {
+      if (
+        !deleted
+      ) {
         return;
       }
 
@@ -2163,9 +2447,11 @@ export function useEditor() {
     event.preventDefault();
 
     const height =
-      track === "V1"
+      track ===
+      "V1"
         ? v1Height
-        : track === "V2"
+        : track ===
+            "V2"
         ? v2Height
         : audioHeight;
 
@@ -2182,7 +2468,7 @@ export function useEditor() {
   };
 
   /* =====================================
-     GLOBAL TIMELINE MOUSE EVENTS
+     GLOBAL MOUSE
   ===================================== */
 
   useEffect(() => {
@@ -2193,7 +2479,9 @@ export function useEditor() {
       const resize =
         resizeStateRef.current;
 
-      if (resize) {
+      if (
+        resize
+      ) {
         const delta =
           event.clientY -
           resize.startMouseY;
@@ -2243,7 +2531,9 @@ export function useEditor() {
       const drag =
         dragStateRef.current;
 
-      if (drag) {
+      if (
+        drag
+      ) {
         const clip =
           timelineClipsRef.current.find(
             (item) =>
@@ -2251,7 +2541,9 @@ export function useEditor() {
               drag.clipId
           );
 
-        if (!clip) {
+        if (
+          !clip
+        ) {
           return;
         }
 
@@ -2310,7 +2602,9 @@ export function useEditor() {
       const trim =
         trimStateRef.current;
 
-      if (!trim) {
+      if (
+        !trim
+      ) {
         return;
       }
 
@@ -2321,7 +2615,9 @@ export function useEditor() {
             trim.clipId
         );
 
-      if (!clip) {
+      if (
+        !clip
+      ) {
         return;
       }
 
@@ -2390,6 +2686,14 @@ export function useEditor() {
                 item.kind ===
                 "video"
               ) {
+                const duration =
+                  Math.max(
+                    MIN_CLIP_DURATION,
+
+                    trim.initialDuration -
+                      actualDelta
+                  );
+
                 return {
                   ...item,
 
@@ -2404,13 +2708,27 @@ export function useEditor() {
                         actualDelta
                     ),
 
-                  duration:
-                    Math.max(
-                      MIN_CLIP_DURATION,
+                  duration,
 
-                      trim.initialDuration -
-                        actualDelta
-                    ),
+                  audio: {
+                    ...item.audio,
+
+                    fadeIn:
+                      Math.min(
+                        item.audio
+                          .fadeIn,
+
+                        duration
+                      ),
+
+                    fadeOut:
+                      Math.min(
+                        item.audio
+                          .fadeOut,
+
+                        duration
+                      ),
+                  },
                 };
               }
 
@@ -2449,7 +2767,9 @@ export function useEditor() {
             delta
         );
 
-      if (media) {
+      if (
+        media
+      ) {
         duration =
           Math.min(
             duration,
@@ -2461,14 +2781,50 @@ export function useEditor() {
 
       const next =
         timelineClipsRef.current.map(
-          (item) =>
-            item.id ===
+          (item) => {
+            if (
+              item.id !==
               trim.clipId
-              ? {
-                  ...item,
-                  duration,
-                }
-              : item
+            ) {
+              return item;
+            }
+
+            if (
+              item.kind ===
+              "video"
+            ) {
+              return {
+                ...item,
+
+                duration,
+
+                audio: {
+                  ...item.audio,
+
+                  fadeIn:
+                    Math.min(
+                      item.audio
+                        .fadeIn,
+
+                      duration
+                    ),
+
+                  fadeOut:
+                    Math.min(
+                      item.audio
+                        .fadeOut,
+
+                      duration
+                    ),
+                },
+              };
+            }
+
+            return {
+              ...item,
+              duration,
+            };
+          }
         );
 
       timelineClipsRef.current =
@@ -2479,40 +2835,43 @@ export function useEditor() {
       );
     };
 
-    const mouseUp = () => {
-      if (
-        operationSnapshotRef.current
-      ) {
-        const old =
-          operationSnapshotRef.current;
+    const mouseUp =
+      () => {
+        if (
+          operationSnapshotRef.current
+        ) {
+          const old =
+            operationSnapshotRef.current;
 
-        const changed =
-          JSON.stringify(
-            old
-          ) !==
-          JSON.stringify(
-            timelineClipsRef.current
-          );
+          const changed =
+            JSON.stringify(
+              old
+            ) !==
+            JSON.stringify(
+              timelineClipsRef.current
+            );
 
-        if (changed) {
-          pushHistory(
-            old
-          );
+          if (
+            changed
+          ) {
+            pushHistory(
+              old
+            );
+          }
         }
-      }
 
-      operationSnapshotRef.current =
-        null;
+        operationSnapshotRef.current =
+          null;
 
-      dragStateRef.current =
-        null;
+        dragStateRef.current =
+          null;
 
-      trimStateRef.current =
-        null;
+        trimStateRef.current =
+          null;
 
-      resizeStateRef.current =
-        null;
-    };
+        resizeStateRef.current =
+          null;
+      };
 
     window.addEventListener(
       "mousemove",
@@ -2541,7 +2900,7 @@ export function useEditor() {
   ]);
 
   /* =====================================
-     VIDEO FRAMES
+     FRAMES
   ===================================== */
 
   const getFrames = (
@@ -2578,7 +2937,8 @@ export function useEditor() {
           20,
 
           Math.ceil(
-            width / 65
+            width /
+              65
           )
         )
       );
@@ -2589,9 +2949,13 @@ export function useEditor() {
           frameCount,
       },
 
-      (_, index) => {
+      (
+        _,
+        index
+      ) => {
         const progress =
-          frameCount === 1
+          frameCount ===
+          1
             ? 0
             : index /
               (
@@ -2673,7 +3037,8 @@ export function useEditor() {
           150,
 
           Math.floor(
-            width / 4
+            width /
+              4
           )
         )
       );
@@ -2684,9 +3049,13 @@ export function useEditor() {
           count,
       },
 
-      (_, index) => {
+      (
+        _,
+        index
+      ) => {
         const progress =
-          count === 1
+          count ===
+          1
             ? 0
             : index /
               (
@@ -2725,7 +3094,8 @@ export function useEditor() {
         return (
           media.waveform[
             waveformIndex
-          ] ?? 0
+          ] ??
+          0
         );
       }
     );
@@ -2735,27 +3105,29 @@ export function useEditor() {
      ZOOM
   ===================================== */
 
-  const zoomIn = () =>
-    setZoom(
-      (prev) =>
-        Math.min(
-          MAX_ZOOM,
+  const zoomIn =
+    () =>
+      setZoom(
+        (prev) =>
+          Math.min(
+            MAX_ZOOM,
 
-          prev +
-            ZOOM_STEP
-        )
-    );
+            prev +
+              ZOOM_STEP
+          )
+      );
 
-  const zoomOut = () =>
-    setZoom(
-      (prev) =>
-        Math.max(
-          MIN_ZOOM,
+  const zoomOut =
+    () =>
+      setZoom(
+        (prev) =>
+          Math.max(
+            MIN_ZOOM,
 
-          prev -
-            ZOOM_STEP
-        )
-    );
+            prev -
+              ZOOM_STEP
+          )
+      );
 
   /* =====================================
      KEYBOARD
@@ -2767,7 +3139,8 @@ export function useEditor() {
         KeyboardEvent
     ) => {
       const target =
-        event.target as HTMLElement;
+        event.target as
+          HTMLElement;
 
       const typing =
         target.tagName ===
@@ -2778,7 +3151,9 @@ export function useEditor() {
           "SELECT" ||
         target.isContentEditable;
 
-      if (typing) {
+      if (
+        typing
+      ) {
         return;
       }
 
@@ -2791,6 +3166,7 @@ export function useEditor() {
         event.preventDefault();
 
         redo();
+
         return;
       }
 
@@ -2802,6 +3178,7 @@ export function useEditor() {
         event.preventDefault();
 
         undo();
+
         return;
       }
 
@@ -2812,6 +3189,7 @@ export function useEditor() {
         event.preventDefault();
 
         splitAtPlayhead();
+
         return;
       }
 
@@ -2822,6 +3200,7 @@ export function useEditor() {
         event.preventDefault();
 
         void togglePlay();
+
         return;
       }
 
@@ -2857,12 +3236,7 @@ export function useEditor() {
     projectDuration,
     activeV1Media,
     activeV2Media,
-    audioMuted,
   ]);
-
-  /* =====================================
-     RETURN
-  ===================================== */
 
   return {
     fileInputRef,
@@ -2920,47 +3294,63 @@ export function useEditor() {
     addTextClip,
 
     selectClip,
+
     seekTimelineFromMouse,
 
     togglePlay,
 
     handleV1TimeUpdate,
+
     handleV1LoadedMetadata,
+
     handleV2LoadedMetadata,
 
     updateSelectedClipTransform,
+
     resetSelectedClipTransform,
 
     beginPreviewTransform,
+
     updatePreviewTransform,
+
     commitPreviewTransform,
+
+    updateSelectedAudio,
+
+    resetSelectedAudio,
 
     updateSelectedText,
 
     bringSelectedForward,
+
     sendSelectedBackward,
 
     splitAtPlayhead,
 
     deleteSelectedClip,
+
     rippleDeleteSelectedClip,
 
     startClipDrag,
+
     startTrim,
 
     startTrackResize,
 
     getFrames,
+
     getWaveform,
 
     undo,
     redo,
 
     canUndo:
-      past.length > 0,
+      past.length >
+      0,
 
     canRedo:
-      future.length > 0,
+      future.length >
+      0,
 
     zoomIn,
     zoomOut,

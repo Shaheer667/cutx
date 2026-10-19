@@ -25,14 +25,33 @@ export type ClipTransform = {
   rotation: number;
   opacity: number;
 
-  /*
-    Optional so all existing clips
-    remain backwards compatible.
-  */
   fitMode?: VideoFitMode;
 
   flipX?: boolean;
   flipY?: boolean;
+
+  cropTop?: number;
+  cropRight?: number;
+  cropBottom?: number;
+  cropLeft?: number;
+};
+
+export type ClipAudioSettings = {
+  /*
+    0 = silent
+    100 = original volume
+    200 = boosted prototype level
+  */
+  volume: number;
+
+  muted: boolean;
+
+  /*
+    Seconds from clip start/end.
+  */
+  fadeIn: number;
+
+  fadeOut: number;
 };
 
 export type TextAlign =
@@ -72,6 +91,8 @@ export type VideoTimelineClip =
     track: VideoTrack;
 
     sourceStart: number;
+
+    audio: ClipAudioSettings;
   };
 
 export type TextTimelineClip =

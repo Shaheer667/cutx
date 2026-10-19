@@ -8,22 +8,36 @@ export function cloneClips(
   clips: TimelineClip[]
 ) {
   return clips.map(
-    (clip) => ({
-      ...clip,
+    (clip) => {
+      if (
+        clip.kind ===
+        "video"
+      ) {
+        return {
+          ...clip,
 
-      transform: {
-        ...clip.transform,
-      },
+          transform: {
+            ...clip.transform,
+          },
 
-      ...(clip.kind ===
-      "text"
-        ? {
-            textStyle: {
-              ...clip.textStyle,
-            },
-          }
-        : {}),
-    })
+          audio: {
+            ...clip.audio,
+          },
+        };
+      }
+
+      return {
+        ...clip,
+
+        transform: {
+          ...clip.transform,
+        },
+
+        textStyle: {
+          ...clip.textStyle,
+        },
+      };
+    }
   ) as TimelineClip[];
 }
 
@@ -43,9 +57,11 @@ export function getClipAtTime(
       ): clip is VideoTimelineClip =>
         clip.kind ===
           "video" &&
-        (!track ||
+        (
+          !track ||
           clip.track ===
-            track)
+            track
+        )
     )
 
     .sort(
@@ -71,7 +87,9 @@ export function getClipAtTime(
 export function getProjectDuration(
   clips: TimelineClip[]
 ) {
-  if (!clips.length) {
+  if (
+    !clips.length
+  ) {
     return 0;
   }
 
@@ -100,7 +118,9 @@ export function getTrackEnd(
           track
     );
 
-  if (!trackClips.length) {
+  if (
+    !trackClips.length
+  ) {
     return 0;
   }
 
@@ -125,27 +145,31 @@ export function getSnappedStart(
   pixelsPerSecond: number
 ) {
   const threshold =
-    10 / pixelsPerSecond;
+    10 /
+    pixelsPerSecond;
 
   const snapPoints: number[] =
     [0];
 
-  clips.forEach((clip) => {
-    if (
-      clip.id === clipId
-    ) {
-      return;
+  clips.forEach(
+    (clip) => {
+      if (
+        clip.id ===
+        clipId
+      ) {
+        return;
+      }
+
+      snapPoints.push(
+        clip.timelineStart
+      );
+
+      snapPoints.push(
+        clip.timelineStart +
+          clip.duration
+      );
     }
-
-    snapPoints.push(
-      clip.timelineStart
-    );
-
-    snapPoints.push(
-      clip.timelineStart +
-        clip.duration
-    );
-  });
+  );
 
   let bestStart =
     proposedStart;

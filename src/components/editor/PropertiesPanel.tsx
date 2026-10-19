@@ -6,15 +6,19 @@ import {
   AlignRight,
   ArrowDown,
   ArrowUp,
+  Crop,
   Maximize2,
   Move,
   RotateCcw,
   RotateCw,
   SlidersHorizontal,
   Type,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 import {
+  ClipAudioSettings,
   TimelineClip,
 } from "@/types/editor";
 
@@ -37,7 +41,17 @@ type Props = {
   selectedClip:
     TimelineClip | null;
 
-  locked: boolean;
+  locked:
+    boolean;
+
+  cropMode:
+    boolean;
+
+  onStartCrop:
+    () => void;
+
+  onResetCrop:
+    () => void;
 
   onTransformChange: (
     patch:
@@ -47,6 +61,16 @@ type Props = {
   ) => void;
 
   onResetTransform:
+    () => void;
+
+  onAudioChange: (
+    patch:
+      Partial<
+        ClipAudioSettings
+      >
+  ) => void;
+
+  onResetAudio:
     () => void;
 
   onTextChange: (
@@ -62,11 +86,16 @@ type Props = {
 };
 
 function toNumber(
-  value: string,
-  fallback: number
+  value:
+    string,
+
+  fallback:
+    number
 ) {
   const parsed =
-    Number(value);
+    Number(
+      value
+    );
 
   return Number.isFinite(
     parsed
@@ -75,11 +104,36 @@ function toNumber(
     : fallback;
 }
 
+function clamp(
+  value:
+    number,
+
+  min:
+    number,
+
+  max:
+    number
+) {
+  return Math.max(
+    min,
+
+    Math.min(
+      max,
+      value
+    )
+  );
+}
+
 export default function PropertiesPanel({
   selectedClip,
   locked,
+  cropMode,
+  onStartCrop,
+  onResetCrop,
   onTransformChange,
   onResetTransform,
+  onAudioChange,
+  onResetAudio,
   onTextChange,
   onBringForward,
   onSendBackward,
@@ -111,6 +165,32 @@ export default function PropertiesPanel({
     transform?.flipY ??
     false;
 
+  const cropTop =
+    transform?.cropTop ??
+    0;
+
+  const cropRight =
+    transform?.cropRight ??
+    0;
+
+  const cropBottom =
+    transform?.cropBottom ??
+    0;
+
+  const cropLeft =
+    transform?.cropLeft ??
+    0;
+
+  const hasCrop =
+    cropTop >
+      0 ||
+    cropRight >
+      0 ||
+    cropBottom >
+      0 ||
+    cropLeft >
+      0;
+
   const canReorder =
     !!selectedClip &&
     !(
@@ -119,6 +199,34 @@ export default function PropertiesPanel({
       selectedClip.track ===
         "V1"
     );
+
+  const audio =
+    selectedClip?.kind ===
+    "video"
+      ? selectedClip.audio ?? {
+          volume:
+            100,
+
+          muted:
+            false,
+
+          fadeIn:
+            0,
+
+          fadeOut:
+            0,
+        }
+      : null;
+
+  const maxFade =
+    selectedClip?.kind ===
+    "video"
+      ? Math.max(
+          0,
+
+          selectedClip.duration
+        )
+      : 0;
 
   return (
     <aside
@@ -204,17 +312,6 @@ export default function PropertiesPanel({
             Select a clip to
             edit its properties
           </p>
-
-          <p
-            className="
-              text-[10px]
-              text-white/20
-              mt-1
-            "
-          >
-            Transform controls
-            will appear here
-          </p>
         </div>
       ) : (
         <div
@@ -266,9 +363,9 @@ export default function PropertiesPanel({
                 onResetTransform
               }
               disabled={
-                disabled
+                disabled ||
+                cropMode
               }
-              title="Reset transform"
               className="
                 h-8
                 px-2.5
@@ -324,8 +421,6 @@ export default function PropertiesPanel({
                     gap-2
                   "
                 >
-                  {/* FIT */}
-
                   <button
                     onClick={() =>
                       onTransformChange(
@@ -336,16 +431,11 @@ export default function PropertiesPanel({
                       )
                     }
                     disabled={
-                      disabled
+                      disabled ||
+                      cropMode
                     }
                     className={`
-                      h-9
-                      rounded-lg
-                      border
-                      text-[10px]
-                      transition
-                      disabled:opacity-30
-
+                      h-9 rounded-lg border text-[10px] transition disabled:opacity-30
                       ${
                         fitMode ===
                         "fit"
@@ -357,8 +447,6 @@ export default function PropertiesPanel({
                     Fit
                   </button>
 
-                  {/* FILL */}
-
                   <button
                     onClick={() =>
                       onTransformChange(
@@ -369,16 +457,11 @@ export default function PropertiesPanel({
                       )
                     }
                     disabled={
-                      disabled
+                      disabled ||
+                      cropMode
                     }
                     className={`
-                      h-9
-                      rounded-lg
-                      border
-                      text-[10px]
-                      transition
-                      disabled:opacity-30
-
+                      h-9 rounded-lg border text-[10px] transition disabled:opacity-30
                       ${
                         fitMode ===
                         "fill"
@@ -390,20 +473,105 @@ export default function PropertiesPanel({
                     Fill
                   </button>
                 </div>
+              </div>
 
-                <p
+              {/* CROP */}
+
+              <div>
+                <div
                   className="
-                    text-[9px]
-                    text-white/20
-                    mt-2
-                    leading-relaxed
+                    flex
+                    items-center
+                    justify-between
+                    mb-2
                   "
                 >
-                  Fit keeps the
-                  full video visible.
-                  Fill covers the
-                  entire project canvas.
-                </p>
+                  <p
+                    className="
+                      text-[10px]
+                      text-white/40
+                    "
+                  >
+                    Crop
+                  </p>
+
+                  {hasCrop && (
+                    <span
+                      className="
+                        text-[9px]
+                        text-violet-300
+                      "
+                    >
+                      Active
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  className="
+                    grid
+                    grid-cols-2
+                    gap-2
+                  "
+                >
+                  <button
+                    onClick={
+                      onStartCrop
+                    }
+                    disabled={
+                      disabled ||
+                      cropMode
+                    }
+                    className="
+                      h-9
+                      rounded-lg
+                      border
+                      border-[#282D36]
+                      bg-[#0B0E13]
+                      text-[10px]
+                      text-white/55
+                      hover:text-white
+                      hover:border-violet-500/50
+                      disabled:opacity-30
+                      flex
+                      items-center
+                      justify-center
+                      gap-1.5
+                    "
+                  >
+                    <Crop
+                      size={12}
+                    />
+
+                    {hasCrop
+                      ? "Edit Crop"
+                      : "Crop"}
+                  </button>
+
+                  <button
+                    onClick={
+                      onResetCrop
+                    }
+                    disabled={
+                      disabled ||
+                      !hasCrop ||
+                      cropMode
+                    }
+                    className="
+                      h-9
+                      rounded-lg
+                      border
+                      border-[#282D36]
+                      bg-[#0B0E13]
+                      text-[10px]
+                      text-white/45
+                      hover:text-white
+                      disabled:opacity-25
+                    "
+                  >
+                    Reset Crop
+                  </button>
+                </div>
               </div>
 
               {/* FLIP */}
@@ -436,20 +604,15 @@ export default function PropertiesPanel({
                       )
                     }
                     disabled={
-                      disabled
+                      disabled ||
+                      cropMode
                     }
                     className={`
-                      h-9
-                      rounded-lg
-                      border
-                      text-[10px]
-                      transition
-                      disabled:opacity-30
-
+                      h-9 rounded-lg border text-[10px] disabled:opacity-30
                       ${
                         flipX
                           ? "border-violet-400 bg-violet-500/15 text-violet-200"
-                          : "border-[#282D36] bg-[#0B0E13] text-white/45 hover:text-white"
+                          : "border-[#282D36] bg-[#0B0E13] text-white/45"
                       }
                     `}
                   >
@@ -466,20 +629,15 @@ export default function PropertiesPanel({
                       )
                     }
                     disabled={
-                      disabled
+                      disabled ||
+                      cropMode
                     }
                     className={`
-                      h-9
-                      rounded-lg
-                      border
-                      text-[10px]
-                      transition
-                      disabled:opacity-30
-
+                      h-9 rounded-lg border text-[10px] disabled:opacity-30
                       ${
                         flipY
                           ? "border-violet-400 bg-violet-500/15 text-violet-200"
-                          : "border-[#282D36] bg-[#0B0E13] text-white/45 hover:text-white"
+                          : "border-[#282D36] bg-[#0B0E13] text-white/45"
                       }
                     `}
                   >
@@ -487,6 +645,277 @@ export default function PropertiesPanel({
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* =================================
+              AUDIO
+          ================================= */}
+
+          {isVideo &&
+            audio && (
+            <div
+              className="
+                border-t
+                border-[#222630]
+                pt-4
+                space-y-4
+              "
+            >
+              <div
+                className="
+                  flex
+                  items-center
+                  justify-between
+                "
+              >
+                <div
+                  className="
+                    flex
+                    items-center
+                    gap-2
+                    text-xs
+                  "
+                >
+                  <Volume2
+                    size={14}
+                  />
+
+                  Audio
+                </div>
+
+                <button
+                  onClick={
+                    onResetAudio
+                  }
+                  disabled={
+                    disabled
+                  }
+                  className="
+                    text-[9px]
+                    text-white/30
+                    hover:text-white
+                    disabled:opacity-30
+                  "
+                >
+                  Reset
+                </button>
+              </div>
+
+              {/* MUTE */}
+
+              <button
+                onClick={() =>
+                  onAudioChange(
+                    {
+                      muted:
+                        !audio.muted,
+                    }
+                  )
+                }
+                disabled={
+                  disabled
+                }
+                className={`
+                  w-full
+                  h-9
+                  rounded-lg
+                  border
+                  flex
+                  items-center
+                  justify-center
+                  gap-2
+                  text-[10px]
+                  transition
+                  disabled:opacity-30
+
+                  ${
+                    audio.muted
+                      ? "border-red-400/40 bg-red-500/10 text-red-200"
+                      : "border-[#282D36] bg-[#0B0E13] text-white/50 hover:text-white"
+                  }
+                `}
+              >
+                {audio.muted ? (
+                  <VolumeX
+                    size={13}
+                  />
+                ) : (
+                  <Volume2
+                    size={13}
+                  />
+                )}
+
+                {audio.muted
+                  ? "Clip Muted"
+                  : "Mute Clip"}
+              </button>
+
+              {/* VOLUME */}
+
+              <div>
+                <div
+                  className="
+                    flex
+                    justify-between
+                    mb-2
+                  "
+                >
+                  <span
+                    className="
+                      text-[9px]
+                      text-white/35
+                    "
+                  >
+                    Volume
+                  </span>
+
+                  <span
+                    className="
+                      text-[9px]
+                      text-white/50
+                    "
+                  >
+                    {Math.round(
+                      audio.volume
+                    )}
+                    %
+                  </span>
+                </div>
+
+                <div
+                  className="
+                    flex
+                    items-center
+                    gap-2
+                  "
+                >
+                  <input
+                    type="range"
+                    min="0"
+                    max="200"
+                    step="1"
+                    value={
+                      audio.volume
+                    }
+                    disabled={
+                      disabled
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      onAudioChange(
+                        {
+                          volume:
+                            Number(
+                              event
+                                .target
+                                .value
+                            ),
+                        }
+                      )
+                    }
+                    className="
+                      flex-1
+                      accent-violet-500
+                    "
+                  />
+
+                  <input
+                    type="number"
+                    min="0"
+                    max="200"
+                    value={
+                      audio.volume
+                    }
+                    disabled={
+                      disabled
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      onAudioChange(
+                        {
+                          volume:
+                            clamp(
+                              toNumber(
+                                event
+                                  .target
+                                  .value,
+
+                                audio.volume
+                              ),
+
+                              0,
+                              200
+                            ),
+                        }
+                      )
+                    }
+                    className="
+                      w-[62px]
+                      bg-[#0B0E13]
+                      border
+                      border-[#282D36]
+                      rounded-lg
+                      p-2
+                      text-xs
+                      outline-none
+                      focus:border-violet-500
+                    "
+                  />
+                </div>
+              </div>
+
+              {/* FADE IN */}
+
+              <AudioFadeControl
+                label="Fade In"
+                value={
+                  audio.fadeIn
+                }
+                max={
+                  maxFade
+                }
+                disabled={
+                  disabled
+                }
+                onChange={(
+                  value
+                ) =>
+                  onAudioChange(
+                    {
+                      fadeIn:
+                        value,
+                    }
+                  )
+                }
+              />
+
+              {/* FADE OUT */}
+
+              <AudioFadeControl
+                label="Fade Out"
+                value={
+                  audio.fadeOut
+                }
+                max={
+                  maxFade
+                }
+                disabled={
+                  disabled
+                }
+                onChange={(
+                  value
+                ) =>
+                  onAudioChange(
+                    {
+                      fadeOut:
+                        value,
+                    }
+                  )
+                }
+              />
             </div>
           )}
 
@@ -544,7 +973,8 @@ export default function PropertiesPanel({
                     onBringForward
                   }
                   disabled={
-                    disabled
+                    disabled ||
+                    cropMode
                   }
                   className="
                     h-9
@@ -554,14 +984,11 @@ export default function PropertiesPanel({
                     bg-[#0B0E13]
                     text-[10px]
                     text-white/55
-                    hover:text-white
-                    hover:border-violet-500/50
-                    hover:bg-violet-500/5
-                    disabled:opacity-30
                     flex
                     items-center
                     justify-center
                     gap-1.5
+                    disabled:opacity-30
                   "
                 >
                   <ArrowUp
@@ -576,7 +1003,8 @@ export default function PropertiesPanel({
                     onSendBackward
                   }
                   disabled={
-                    disabled
+                    disabled ||
+                    cropMode
                   }
                   className="
                     h-9
@@ -586,14 +1014,11 @@ export default function PropertiesPanel({
                     bg-[#0B0E13]
                     text-[10px]
                     text-white/55
-                    hover:text-white
-                    hover:border-violet-500/50
-                    hover:bg-violet-500/5
-                    disabled:opacity-30
                     flex
                     items-center
                     justify-center
                     gap-1.5
+                    disabled:opacity-30
                   "
                 >
                   <ArrowDown
@@ -655,7 +1080,6 @@ export default function PropertiesPanel({
                   )
                 }
                 rows={3}
-                placeholder="Type your text"
                 className="
                   w-full
                   resize-none
@@ -667,7 +1091,6 @@ export default function PropertiesPanel({
                   text-xs
                   outline-none
                   focus:border-violet-500
-                  disabled:opacity-40
                 "
               />
 
@@ -678,8 +1101,6 @@ export default function PropertiesPanel({
                   gap-2
                 "
               >
-                {/* FONT SIZE */}
-
                 <label>
                   <span
                     className="
@@ -701,31 +1122,20 @@ export default function PropertiesPanel({
                         .textStyle
                         .fontSize
                     }
-                    disabled={
-                      disabled
-                    }
                     onChange={(
                       event
                     ) =>
                       onTextChange(
                         {
                           fontSize:
-                            Math.max(
+                            clamp(
+                              Number(
+                                event
+                                  .target
+                                  .value
+                              ),
                               8,
-
-                              Math.min(
-                                240,
-
-                                toNumber(
-                                  event
-                                    .target
-                                    .value,
-
-                                  selectedClip
-                                    .textStyle
-                                    .fontSize
-                                )
-                              )
+                              240
                             ),
                         }
                       )
@@ -738,14 +1148,9 @@ export default function PropertiesPanel({
                       rounded-lg
                       p-2
                       text-xs
-                      outline-none
-                      focus:border-violet-500
-                      disabled:opacity-40
                     "
                   />
                 </label>
-
-                {/* COLOR */}
 
                 <label>
                   <span
@@ -759,214 +1164,145 @@ export default function PropertiesPanel({
                     Color
                   </span>
 
-                  <div
+                  <input
+                    type="color"
+                    value={
+                      selectedClip
+                        .textStyle
+                        .color
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      onTextChange(
+                        {
+                          color:
+                            event
+                              .target
+                              .value,
+                        }
+                      )
+                    }
                     className="
+                      w-full
                       h-[34px]
-                      rounded-lg
+                      bg-[#0B0E13]
                       border
                       border-[#282D36]
-                      bg-[#0B0E13]
+                      rounded-lg
                       p-1
-                      flex
-                      items-center
-                      gap-2
                     "
-                  >
-                    <input
-                      type="color"
-                      value={
-                        selectedClip
-                          .textStyle
-                          .color
-                      }
-                      disabled={
-                        disabled
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        onTextChange(
-                          {
-                            color:
-                              event
-                                .target
-                                .value,
-                          }
-                        )
-                      }
-                      className="
-                        w-7
-                        h-6
-                        bg-transparent
-                        border-0
-                        cursor-pointer
-                      "
-                    />
-
-                    <span
-                      className="
-                        text-[9px]
-                        text-white/45
-                        uppercase
-                        truncate
-                      "
-                    >
-                      {
-                        selectedClip
-                          .textStyle
-                          .color
-                      }
-                    </span>
-                  </div>
+                  />
                 </label>
               </div>
 
-              {/* ALIGNMENT */}
-
-              <div>
-                <span
-                  className="
-                    text-[9px]
-                    text-white/35
-                    block
-                    mb-1.5
-                  "
-                >
-                  Alignment
-                </span>
-
-                <div
-                  className="
-                    grid
-                    grid-cols-3
-                    gap-1.5
-                  "
-                >
-                  {(
+              <div
+                className="
+                  grid
+                  grid-cols-3
+                  gap-1.5
+                "
+              >
+                {(
+                  [
                     [
-                      [
-                        "left",
-                        AlignLeft,
-                      ],
+                      "left",
+                      AlignLeft,
+                    ],
 
-                      [
-                        "center",
-                        AlignCenter,
-                      ],
+                    [
+                      "center",
+                      AlignCenter,
+                    ],
 
-                      [
-                        "right",
-                        AlignRight,
-                      ],
-                    ] as const
-                  ).map(
-                    ([
-                      align,
-                      Icon,
-                    ]) => (
-                      <button
-                        key={
-                          align
-                        }
-                        onClick={() =>
-                          onTextChange(
-                            {
-                              align,
-                            }
-                          )
-                        }
-                        disabled={
-                          disabled
-                        }
-                        className={`h-8 rounded-lg border flex items-center justify-center transition disabled:opacity-40 ${
-                          selectedClip
-                            .textStyle
-                            .align ===
-                          align
-                            ? "border-violet-400 bg-violet-500/15 text-violet-200"
-                            : "border-[#282D36] bg-[#0B0E13] text-white/40 hover:text-white"
-                        }`}
-                      >
-                        <Icon
-                          size={13}
-                        />
-                      </button>
-                    )
-                  )}
-                </div>
+                    [
+                      "right",
+                      AlignRight,
+                    ],
+                  ] as const
+                ).map(
+                  ([
+                    align,
+                    Icon,
+                  ]) => (
+                    <button
+                      key={
+                        align
+                      }
+                      onClick={() =>
+                        onTextChange(
+                          {
+                            align,
+                          }
+                        )
+                      }
+                      className={`h-8 rounded-lg border flex items-center justify-center ${
+                        selectedClip
+                          .textStyle
+                          .align ===
+                        align
+                          ? "border-violet-400 bg-violet-500/15 text-violet-200"
+                          : "border-[#282D36] bg-[#0B0E13] text-white/40"
+                      }`}
+                    >
+                      <Icon
+                        size={13}
+                      />
+                    </button>
+                  )
+                )}
               </div>
 
-              {/* WEIGHT */}
+              <select
+                value={
+                  selectedClip
+                    .textStyle
+                    .fontWeight
+                }
+                onChange={(
+                  event
+                ) =>
+                  onTextChange(
+                    {
+                      fontWeight:
+                        Number(
+                          event
+                            .target
+                            .value
+                        ),
+                    }
+                  )
+                }
+                className="
+                  w-full
+                  bg-[#0B0E13]
+                  border
+                  border-[#282D36]
+                  rounded-lg
+                  p-2
+                  text-xs
+                "
+              >
+                <option value="400">
+                  Regular
+                </option>
 
-              <label>
-                <span
-                  className="
-                    text-[9px]
-                    text-white/35
-                    block
-                    mb-1.5
-                  "
-                >
-                  Font weight
-                </span>
+                <option value="500">
+                  Medium
+                </option>
 
-                <select
-                  value={
-                    selectedClip
-                      .textStyle
-                      .fontWeight
-                  }
-                  disabled={
-                    disabled
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    onTextChange(
-                      {
-                        fontWeight:
-                          Number(
-                            event
-                              .target
-                              .value
-                          ),
-                      }
-                    )
-                  }
-                  className="
-                    w-full
-                    bg-[#0B0E13]
-                    border
-                    border-[#282D36]
-                    rounded-lg
-                    p-2
-                    text-xs
-                    outline-none
-                    focus:border-violet-500
-                    disabled:opacity-40
-                  "
-                >
-                  <option value="400">
-                    Regular
-                  </option>
+                <option value="600">
+                  Semi Bold
+                </option>
 
-                  <option value="500">
-                    Medium
-                  </option>
+                <option value="700">
+                  Bold
+                </option>
 
-                  <option value="600">
-                    Semi Bold
-                  </option>
-
-                  <option value="700">
-                    Bold
-                  </option>
-
-                  <option value="800">
-                    Extra Bold
-                  </option>
-                </select>
-              </label>
+                <option value="800">
+                  Extra Bold
+                </option>
+              </select>
             </div>
           )}
 
@@ -979,6 +1315,7 @@ export default function PropertiesPanel({
               border-t
               border-[#222630]
               pt-4
+              space-y-4
             "
           >
             <div
@@ -987,7 +1324,6 @@ export default function PropertiesPanel({
                 items-center
                 gap-2
                 text-xs
-                mb-4
               "
             >
               <Move
@@ -1004,149 +1340,80 @@ export default function PropertiesPanel({
                 gap-2
               "
             >
-              <label>
-                <span
-                  className="
-                    text-[9px]
-                    text-white/35
-                    block
-                    mb-1.5
-                  "
-                >
-                  Position X
-                </span>
-
-                <input
-                  type="number"
-                  value={
-                    transform?.x ??
-                    0
-                  }
-                  disabled={
-                    disabled
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    onTransformChange(
-                      {
-                        x: toNumber(
-                          event
-                            .target
-                            .value,
-
-                          transform?.x ??
-                            0
-                        ),
-                      }
-                    )
-                  }
-                  className="
-                    w-full
-                    bg-[#0B0E13]
-                    border
-                    border-[#282D36]
-                    rounded-lg
-                    p-2
-                    text-xs
-                    outline-none
-                    focus:border-violet-500
-                    disabled:opacity-40
-                  "
-                />
-              </label>
-
-              <label>
-                <span
-                  className="
-                    text-[9px]
-                    text-white/35
-                    block
-                    mb-1.5
-                  "
-                >
-                  Position Y
-                </span>
-
-                <input
-                  type="number"
-                  value={
-                    transform?.y ??
-                    0
-                  }
-                  disabled={
-                    disabled
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    onTransformChange(
-                      {
-                        y: toNumber(
-                          event
-                            .target
-                            .value,
-
-                          transform?.y ??
-                            0
-                        ),
-                      }
-                    )
-                  }
-                  className="
-                    w-full
-                    bg-[#0B0E13]
-                    border
-                    border-[#282D36]
-                    rounded-lg
-                    p-2
-                    text-xs
-                    outline-none
-                    focus:border-violet-500
-                    disabled:opacity-40
-                  "
-                />
-              </label>
-            </div>
-          </div>
-
-          {/* SCALE */}
-
-          <div>
-            <div
-              className="
-                text-[10px]
-                text-white/40
-                mb-2
-                flex
-                gap-2
-              "
-            >
-              <Maximize2
-                size={12}
+              <NumberField
+                label="Position X"
+                value={
+                  transform?.x ??
+                  0
+                }
+                disabled={
+                  disabled ||
+                  cropMode
+                }
+                onChange={(
+                  value
+                ) =>
+                  onTransformChange(
+                    {
+                      x:
+                        value,
+                    }
+                  )
+                }
               />
 
-              Scale
+              <NumberField
+                label="Position Y"
+                value={
+                  transform?.y ??
+                  0
+                }
+                disabled={
+                  disabled ||
+                  cropMode
+                }
+                onChange={(
+                  value
+                ) =>
+                  onTransformChange(
+                    {
+                      y:
+                        value,
+                    }
+                  )
+                }
+              />
             </div>
 
-            <div
-              className="
-                flex
-                gap-2
-                items-center
-              "
-            >
+            <div>
+              <div
+                className="
+                  flex
+                  gap-2
+                  items-center
+                  text-[10px]
+                  text-white/40
+                  mb-2
+                "
+              >
+                <Maximize2
+                  size={12}
+                />
+
+                Scale
+              </div>
+
               <input
                 type="range"
                 min="10"
                 max="400"
-                step="1"
                 value={
                   transform?.scale ??
                   100
                 }
                 disabled={
-                  disabled
+                  disabled ||
+                  cropMode
                 }
                 onChange={(
                   event
@@ -1154,133 +1421,73 @@ export default function PropertiesPanel({
                   onTransformChange(
                     {
                       scale:
-                        toNumber(
+                        Number(
                           event
                             .target
-                            .value,
-
-                          transform?.scale ??
-                            100
+                            .value
                         ),
                     }
                   )
                 }
                 className="
-                  flex-1
+                  w-full
                   accent-violet-500
                 "
               />
+            </div>
+
+            <div>
+              <div
+                className="
+                  flex
+                  gap-2
+                  text-[10px]
+                  text-white/40
+                  mb-2
+                "
+              >
+                <RotateCw
+                  size={12}
+                />
+
+                Rotation
+              </div>
 
               <input
                 type="number"
-                min="10"
-                max="400"
                 value={
-                  transform?.scale ??
-                  100
+                  transform?.rotation ??
+                  0
                 }
                 disabled={
-                  disabled
+                  disabled ||
+                  cropMode
                 }
                 onChange={(
                   event
                 ) =>
                   onTransformChange(
                     {
-                      scale:
-                        Math.max(
-                          10,
-
-                          Math.min(
-                            400,
-
-                            toNumber(
-                              event
-                                .target
-                                .value,
-
-                              transform?.scale ??
-                                100
-                            )
-                          )
+                      rotation:
+                        Number(
+                          event
+                            .target
+                            .value
                         ),
                     }
                   )
                 }
                 className="
-                  w-[68px]
+                  w-full
                   bg-[#0B0E13]
                   border
                   border-[#282D36]
                   rounded-lg
                   p-2
                   text-xs
-                  outline-none
-                  focus:border-violet-500
-                  disabled:opacity-40
                 "
               />
             </div>
-          </div>
-
-          {/* ROTATION */}
-
-          <div>
-            <div
-              className="
-                text-[10px]
-                text-white/40
-                mb-2
-                flex
-                gap-2
-              "
-            >
-              <RotateCw
-                size={12}
-              />
-
-              Rotation
-            </div>
-
-            <input
-              type="number"
-              value={
-                transform?.rotation ??
-                0
-              }
-              disabled={
-                disabled
-              }
-              onChange={(
-                event
-              ) =>
-                onTransformChange(
-                  {
-                    rotation:
-                      toNumber(
-                        event
-                          .target
-                          .value,
-
-                        transform?.rotation ??
-                          0
-                      ),
-                  }
-                )
-              }
-              className="
-                w-full
-                bg-[#0B0E13]
-                border
-                border-[#282D36]
-                rounded-lg
-                p-2
-                text-xs
-                outline-none
-                focus:border-violet-500
-                disabled:opacity-40
-              "
-            />
           </div>
 
           {/* OPACITY */}
@@ -1318,7 +1525,6 @@ export default function PropertiesPanel({
                 className="
                   text-[10px]
                   text-white/40
-                  tabular-nums
                 "
               >
                 {Math.round(
@@ -1333,13 +1539,13 @@ export default function PropertiesPanel({
               type="range"
               min="0"
               max="100"
-              step="1"
               value={
                 transform?.opacity ??
                 100
               }
               disabled={
-                disabled
+                disabled ||
+                cropMode
               }
               onChange={(
                 event
@@ -1347,13 +1553,10 @@ export default function PropertiesPanel({
                 onTransformChange(
                   {
                     opacity:
-                      toNumber(
+                      Number(
                         event
                           .target
-                          .value,
-
-                        transform?.opacity ??
-                          100
+                          .value
                       ),
                   }
                 )
@@ -1364,26 +1567,219 @@ export default function PropertiesPanel({
               "
             />
           </div>
-
-          {locked && (
-            <div
-              className="
-                rounded-lg
-                border
-                border-violet-500/20
-                bg-violet-500/5
-                p-3
-                text-[10px]
-                text-violet-200/70
-              "
-            >
-              Timeline is locked.
-              Unlock it to edit
-              clip properties.
-            </div>
-          )}
         </div>
       )}
     </aside>
+  );
+}
+
+function AudioFadeControl({
+  label,
+  value,
+  max,
+  disabled,
+  onChange,
+}: {
+  label:
+    string;
+
+  value:
+    number;
+
+  max:
+    number;
+
+  disabled:
+    boolean;
+
+  onChange: (
+    value:
+      number
+  ) => void;
+}) {
+  const sliderMax =
+    Math.max(
+      0.1,
+      max
+    );
+
+  return (
+    <div>
+      <div
+        className="
+          flex
+          justify-between
+          mb-2
+        "
+      >
+        <span
+          className="
+            text-[9px]
+            text-white/35
+          "
+        >
+          {label}
+        </span>
+
+        <span
+          className="
+            text-[9px]
+            text-white/50
+          "
+        >
+          {value.toFixed(
+            1
+          )}
+          s
+        </span>
+      </div>
+
+      <div
+        className="
+          flex
+          items-center
+          gap-2
+        "
+      >
+        <input
+          type="range"
+          min="0"
+          max={
+            sliderMax
+          }
+          step="0.1"
+          value={
+            Math.min(
+              value,
+              sliderMax
+            )
+          }
+          disabled={
+            disabled
+          }
+          onChange={(
+            event
+          ) =>
+            onChange(
+              Number(
+                event
+                  .target
+                  .value
+              )
+            )
+          }
+          className="
+            flex-1
+            accent-violet-500
+          "
+        />
+
+        <input
+          type="number"
+          min="0"
+          max={
+            max
+          }
+          step="0.1"
+          value={
+            value
+          }
+          disabled={
+            disabled
+          }
+          onChange={(
+            event
+          ) =>
+            onChange(
+              clamp(
+                Number(
+                  event
+                    .target
+                    .value
+                ),
+                0,
+                max
+              )
+            )
+          }
+          className="
+            w-[62px]
+            bg-[#0B0E13]
+            border
+            border-[#282D36]
+            rounded-lg
+            p-2
+            text-xs
+          "
+        />
+      </div>
+    </div>
+  );
+}
+
+function NumberField({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label:
+    string;
+
+  value:
+    number;
+
+  disabled:
+    boolean;
+
+  onChange: (
+    value:
+      number
+  ) => void;
+}) {
+  return (
+    <label>
+      <span
+        className="
+          text-[9px]
+          text-white/35
+          block
+          mb-1.5
+        "
+      >
+        {label}
+      </span>
+
+      <input
+        type="number"
+        value={
+          value
+        }
+        disabled={
+          disabled
+        }
+        onChange={(
+          event
+        ) =>
+          onChange(
+            toNumber(
+              event
+                .target
+                .value,
+              value
+            )
+          )
+        }
+        className="
+          w-full
+          bg-[#0B0E13]
+          border
+          border-[#282D36]
+          rounded-lg
+          p-2
+          text-xs
+        "
+      />
+    </label>
   );
 }

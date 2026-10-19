@@ -1,11 +1,13 @@
 "use client";
 
 import {
+  Check,
   Pause,
   Play,
   RectangleHorizontal,
   RectangleVertical,
   Square,
+  X,
 } from "lucide-react";
 
 import {
@@ -15,6 +17,7 @@ import {
 } from "react";
 
 import {
+  ClipTransform,
   MediaItem,
   TimelineClip,
 } from "@/types/editor";
@@ -28,6 +31,13 @@ export type ProjectAspectRatio =
   | "9:16"
   | "1:1"
   | "4:5";
+
+type CropValues = {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+};
 
 type Props = {
   v1VideoRef:
@@ -55,6 +65,9 @@ type Props = {
     string | null;
 
   locked:
+    boolean;
+
+  cropMode:
     boolean;
 
   v1Visible:
@@ -117,6 +130,14 @@ type Props = {
 
   onCommitTransform:
     () => void;
+
+  onApplyCrop: (
+    patch:
+      Partial<ClipTransform>
+  ) => void;
+
+  onCloseCrop:
+    () => void;
 };
 
 type Size = {
@@ -132,6 +153,12 @@ type SnapGuides = {
 const CENTER_SNAP_THRESHOLD =
   8;
 
+const MAX_CROP =
+  90;
+
+const MIN_VISIBLE_PERCENT =
+  10;
+
 const aspectRatioValues:
   Record<
     ProjectAspectRatio,
@@ -144,8 +171,23 @@ const aspectRatioValues:
 };
 
 /* =====================================
-   GEOMETRY
+   HELPERS
 ===================================== */
+
+function clamp(
+  value: number,
+  min: number,
+  max: number
+) {
+  return Math.max(
+    min,
+
+    Math.min(
+      max,
+      value
+    )
+  );
+}
 
 function distanceFromCenter(
   centerX: number,
@@ -185,10 +227,6 @@ function angleFromCenter(
     Math.PI
   );
 }
-
-/* =====================================
-   FIT
-===================================== */
 
 function getContainedSize(
   containerWidth: number,
@@ -243,10 +281,6 @@ function getContainedSize(
   };
 }
 
-/* =====================================
-   FILL
-===================================== */
-
 function getCoverSize(
   containerWidth: number,
   containerHeight: number,
@@ -276,16 +310,6 @@ function getCoverSize(
     mediaWidth /
     mediaHeight;
 
-  /*
-    Wider media:
-    height matches canvas,
-    width extends outside.
-
-    Taller media:
-    width matches canvas,
-    height extends outside.
-  */
-
   if (
     mediaRatio >
     containerRatio
@@ -309,10 +333,6 @@ function getCoverSize(
       mediaRatio,
   };
 }
-
-/* =====================================
-   TRANSFORM STYLE
-===================================== */
 
 function getTransformStyle(
   clip:
@@ -369,6 +389,54 @@ function getTransformStyle(
   };
 }
 
+function getCropFromClip(
+  clip:
+    TimelineClip | null
+): CropValues {
+  return {
+    top:
+      clip?.transform
+        .cropTop ??
+      0,
+
+    right:
+      clip?.transform
+        .cropRight ??
+      0,
+
+    bottom:
+      clip?.transform
+        .cropBottom ??
+      0,
+
+    left:
+      clip?.transform
+        .cropLeft ??
+      0,
+  };
+}
+
+function getClipPath(
+  clip:
+    TimelineClip,
+
+  overrideCrop?:
+    CropValues
+) {
+  const crop =
+    overrideCrop ??
+    getCropFromClip(
+      clip
+    );
+
+  return `inset(
+    ${crop.top}%
+    ${crop.right}%
+    ${crop.bottom}%
+    ${crop.left}%
+  )`;
+}
+
 /* =====================================
    COMPONENT
 ===================================== */
@@ -388,6 +456,8 @@ export default function PreviewPanel({
   selectedClipId,
 
   locked,
+
+  cropMode,
 
   v1Visible,
   v2Visible,
@@ -417,6 +487,9 @@ export default function PreviewPanel({
   onPreviewTransform,
 
   onCommitTransform,
+
+  onApplyCrop,
+  onCloseCrop,
 }: Props) {
   const canvasRef =
     useRef<HTMLDivElement | null>(
@@ -455,9 +528,49 @@ export default function PreviewPanel({
     y: false,
   });
 
+  const [
+    cropDraft,
+    setCropDraft,
+  ] = useState<CropValues>({
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  });
+
   const canEdit =
     !isPlaying &&
-    !locked;
+    !locked &&
+    !cropMode;
+
+  /* =====================================
+     SELECTED VIDEO FOR CROP
+  ===================================== */
+
+  const selectedVideoClip =
+    activeV1Clip?.id ===
+    selectedClipId
+      ? activeV1Clip
+      : activeV2Clip?.id ===
+        selectedClipId
+      ? activeV2Clip
+      : null;
+
+  useEffect(() => {
+    if (
+      cropMode &&
+      selectedVideoClip
+    ) {
+      setCropDraft(
+        getCropFromClip(
+          selectedVideoClip
+        )
+      );
+    }
+  }, [
+    cropMode,
+    selectedClipId,
+  ]);
 
   /* =====================================
      CANVAS SIZE
@@ -549,7 +662,7 @@ export default function PreviewPanel({
     };
 
   /* =====================================
-     FIT / FILL CALCULATION
+     FIT / FILL
   ===================================== */
 
   const v1FitMode =
@@ -595,10 +708,6 @@ export default function PreviewPanel({
           v2NaturalSize.width,
           v2NaturalSize.height
         );
-
-  /* =====================================
-     SELECTED
-  ===================================== */
 
   const isSelected = (
     clip:
@@ -677,10 +786,6 @@ export default function PreviewPanel({
 
       let snapY =
         false;
-
-      /*
-        Alt disables center snapping.
-      */
 
       if (
         !moveEvent.altKey
@@ -859,13 +964,10 @@ export default function PreviewPanel({
         ratio;
 
       nextScale =
-        Math.max(
+        clamp(
+          nextScale,
           10,
-
-          Math.min(
-            400,
-            nextScale
-          )
+          400
         );
 
       onPreviewTransform(
@@ -1051,6 +1153,279 @@ export default function PreviewPanel({
     );
   };
 
+  /* =====================================
+     CROP HANDLE
+  ===================================== */
+
+  const startCropHandle = (
+    event:
+      React.MouseEvent,
+
+    side:
+      | "top"
+      | "right"
+      | "bottom"
+      | "left"
+  ) => {
+    if (
+      !cropMode ||
+      !selectedVideoClip
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const layer =
+      (
+        event.currentTarget as HTMLElement
+      ).closest(
+        "[data-transform-layer]"
+      ) as
+        HTMLElement | null;
+
+    if (!layer) {
+      return;
+    }
+
+    const rect =
+      layer.getBoundingClientRect();
+
+    const startX =
+      event.clientX;
+
+    const startY =
+      event.clientY;
+
+    const initial =
+      {
+        ...cropDraft,
+      };
+
+    document.body.style.userSelect =
+      "none";
+
+    document.body.style.cursor =
+      side === "left" ||
+      side === "right"
+        ? "ew-resize"
+        : "ns-resize";
+
+    const handleMouseMove = (
+      moveEvent:
+        MouseEvent
+    ) => {
+      const deltaX =
+        moveEvent.clientX -
+        startX;
+
+      const deltaY =
+        moveEvent.clientY -
+        startY;
+
+      const deltaXPercent =
+        rect.width
+          ? (
+              deltaX /
+              rect.width
+            ) * 100
+          : 0;
+
+      const deltaYPercent =
+        rect.height
+          ? (
+              deltaY /
+              rect.height
+            ) * 100
+          : 0;
+
+      let next =
+        {
+          ...initial,
+        };
+
+      if (
+        side === "left"
+      ) {
+        next.left =
+          clamp(
+            initial.left +
+              deltaXPercent,
+
+            0,
+
+            Math.min(
+              MAX_CROP,
+
+              100 -
+                initial.right -
+                MIN_VISIBLE_PERCENT
+            )
+          );
+      }
+
+      if (
+        side === "right"
+      ) {
+        next.right =
+          clamp(
+            initial.right -
+              deltaXPercent,
+
+            0,
+
+            Math.min(
+              MAX_CROP,
+
+              100 -
+                initial.left -
+                MIN_VISIBLE_PERCENT
+            )
+          );
+      }
+
+      if (
+        side === "top"
+      ) {
+        next.top =
+          clamp(
+            initial.top +
+              deltaYPercent,
+
+            0,
+
+            Math.min(
+              MAX_CROP,
+
+              100 -
+                initial.bottom -
+                MIN_VISIBLE_PERCENT
+            )
+          );
+      }
+
+      if (
+        side === "bottom"
+      ) {
+        next.bottom =
+          clamp(
+            initial.bottom -
+              deltaYPercent,
+
+            0,
+
+            Math.min(
+              MAX_CROP,
+
+              100 -
+                initial.top -
+                MIN_VISIBLE_PERCENT
+            )
+          );
+      }
+
+      next = {
+        top:
+          Math.round(
+            next.top *
+              10
+          ) / 10,
+
+        right:
+          Math.round(
+            next.right *
+              10
+          ) / 10,
+
+        bottom:
+          Math.round(
+            next.bottom *
+              10
+          ) / 10,
+
+        left:
+          Math.round(
+            next.left *
+              10
+          ) / 10,
+      };
+
+      setCropDraft(
+        next
+      );
+    };
+
+    const handleMouseUp =
+      () => {
+        window.removeEventListener(
+          "mousemove",
+          handleMouseMove
+        );
+
+        window.removeEventListener(
+          "mouseup",
+          handleMouseUp
+        );
+
+        document.body.style.cursor =
+          "";
+
+        document.body.style.userSelect =
+          "";
+      };
+
+    window.addEventListener(
+      "mousemove",
+      handleMouseMove
+    );
+
+    window.addEventListener(
+      "mouseup",
+      handleMouseUp
+    );
+  };
+
+  /* =====================================
+     CROP APPLY / CANCEL
+  ===================================== */
+
+  const applyCrop =
+    () => {
+      if (
+        !selectedVideoClip
+      ) {
+        return;
+      }
+
+      onApplyCrop({
+        cropTop:
+          cropDraft.top,
+
+        cropRight:
+          cropDraft.right,
+
+        cropBottom:
+          cropDraft.bottom,
+
+        cropLeft:
+          cropDraft.left,
+      });
+
+      onCloseCrop();
+    };
+
+  const cancelCrop =
+    () => {
+      setCropDraft(
+        getCropFromClip(
+          selectedVideoClip
+        )
+      );
+
+      onCloseCrop();
+    };
+
   return (
     <section
       className="
@@ -1084,93 +1459,155 @@ export default function PreviewPanel({
             text-white/30
           "
         >
-          Canvas
+          {cropMode
+            ? "Crop Mode"
+            : "Canvas"}
         </span>
 
-        <div
-          className="
-            flex
-            items-center
-            gap-1
-            p-1
-            rounded-lg
-            bg-[#090B0F]
-            border
-            border-[#242933]
-          "
-        >
-          <AspectButton
-            active={
-              aspectRatio ===
-              "16:9"
-            }
-            label="16:9"
-            title="Landscape 16:9"
-            onClick={() =>
-              onAspectRatioChange(
+        {!cropMode ? (
+          <div
+            className="
+              flex
+              items-center
+              gap-1
+              p-1
+              rounded-lg
+              bg-[#090B0F]
+              border
+              border-[#242933]
+            "
+          >
+            <AspectButton
+              active={
+                aspectRatio ===
                 "16:9"
-              )
-            }
-          >
-            <RectangleHorizontal
-              size={13}
-            />
-          </AspectButton>
+              }
+              label="16:9"
+              title="Landscape 16:9"
+              onClick={() =>
+                onAspectRatioChange(
+                  "16:9"
+                )
+              }
+            >
+              <RectangleHorizontal
+                size={13}
+              />
+            </AspectButton>
 
-          <AspectButton
-            active={
-              aspectRatio ===
-              "9:16"
-            }
-            label="9:16"
-            title="Vertical 9:16"
-            onClick={() =>
-              onAspectRatioChange(
+            <AspectButton
+              active={
+                aspectRatio ===
                 "9:16"
-              )
-            }
-          >
-            <RectangleVertical
-              size={13}
-            />
-          </AspectButton>
+              }
+              label="9:16"
+              title="Vertical 9:16"
+              onClick={() =>
+                onAspectRatioChange(
+                  "9:16"
+                )
+              }
+            >
+              <RectangleVertical
+                size={13}
+              />
+            </AspectButton>
 
-          <AspectButton
-            active={
-              aspectRatio ===
-              "1:1"
-            }
-            label="1:1"
-            title="Square 1:1"
-            onClick={() =>
-              onAspectRatioChange(
+            <AspectButton
+              active={
+                aspectRatio ===
                 "1:1"
-              )
-            }
-          >
-            <Square
-              size={12}
-            />
-          </AspectButton>
+              }
+              label="1:1"
+              title="Square 1:1"
+              onClick={() =>
+                onAspectRatioChange(
+                  "1:1"
+                )
+              }
+            >
+              <Square
+                size={12}
+              />
+            </AspectButton>
 
-          <AspectButton
-            active={
-              aspectRatio ===
-              "4:5"
-            }
-            label="4:5"
-            title="Portrait 4:5"
-            onClick={() =>
-              onAspectRatioChange(
+            <AspectButton
+              active={
+                aspectRatio ===
                 "4:5"
-              )
-            }
+              }
+              label="4:5"
+              title="Portrait 4:5"
+              onClick={() =>
+                onAspectRatioChange(
+                  "4:5"
+                )
+              }
+            >
+              <RectangleVertical
+                size={12}
+              />
+            </AspectButton>
+          </div>
+        ) : (
+          <div
+            className="
+              flex
+              items-center
+              gap-2
+            "
           >
-            <RectangleVertical
-              size={12}
-            />
-          </AspectButton>
-        </div>
+            <button
+              onClick={
+                cancelCrop
+              }
+              className="
+                h-7
+                px-3
+                rounded-lg
+                border
+                border-[#2A3039]
+                text-[10px]
+                text-white/55
+                hover:text-white
+                hover:bg-white/5
+                flex
+                items-center
+                gap-1.5
+              "
+            >
+              <X
+                size={12}
+              />
+
+              Cancel
+            </button>
+
+            <button
+              onClick={
+                applyCrop
+              }
+              className="
+                h-7
+                px-3
+                rounded-lg
+                bg-violet-500
+                text-[10px]
+                text-white
+                hover:bg-violet-400
+                flex
+                items-center
+                gap-1.5
+              "
+            >
+              <Check
+                size={12}
+              />
+
+              Apply
+            </button>
+          </div>
+        )}
 
         <span
           className="
@@ -1185,7 +1622,7 @@ export default function PreviewPanel({
       </div>
 
       {/* =================================
-          PREVIEW AREA
+          PREVIEW
       ================================= */}
 
       <div
@@ -1290,6 +1727,19 @@ export default function PreviewPanel({
                   draggable={
                     false
                   }
+                  style={{
+                    clipPath:
+                      getClipPath(
+                        activeV1Clip,
+
+                        cropMode &&
+                        isSelected(
+                          activeV1Clip
+                        )
+                          ? cropDraft
+                          : undefined
+                      ),
+                  }}
                   className="
                     absolute
                     inset-0
@@ -1300,39 +1750,53 @@ export default function PreviewPanel({
                   "
                 />
 
-                {isSelected(
+                {cropMode &&
+                isSelected(
                   activeV1Clip
-                ) && (
-                  <SelectionOutline
-                    label={
-                      v1FitMode ===
-                      "fill"
-                        ? "V1 · Fill"
-                        : "V1 · Fit"
+                ) ? (
+                  <CropOverlay
+                    crop={
+                      cropDraft
                     }
-
-                    disabled={
-                      !canEdit
-                    }
-
-                    onScaleStart={(
-                      event
-                    ) =>
-                      startScale(
-                        event,
-                        activeV1Clip
-                      )
-                    }
-
-                    onRotateStart={(
-                      event
-                    ) =>
-                      startRotate(
-                        event,
-                        activeV1Clip
-                      )
+                    onStart={
+                      startCropHandle
                     }
                   />
+                ) : (
+                  isSelected(
+                    activeV1Clip
+                  ) && (
+                    <SelectionOutline
+                      label={
+                        v1FitMode ===
+                        "fill"
+                          ? "V1 · Fill"
+                          : "V1 · Fit"
+                      }
+
+                      disabled={
+                        !canEdit
+                      }
+
+                      onScaleStart={(
+                        event
+                      ) =>
+                        startScale(
+                          event,
+                          activeV1Clip
+                        )
+                      }
+
+                      onRotateStart={(
+                        event
+                      ) =>
+                        startRotate(
+                          event,
+                          activeV1Clip
+                        )
+                      }
+                    />
+                  )
                 )}
               </div>
             )}
@@ -1399,6 +1863,19 @@ export default function PreviewPanel({
                   draggable={
                     false
                   }
+                  style={{
+                    clipPath:
+                      getClipPath(
+                        activeV2Clip,
+
+                        cropMode &&
+                        isSelected(
+                          activeV2Clip
+                        )
+                          ? cropDraft
+                          : undefined
+                      ),
+                  }}
                   className="
                     absolute
                     inset-0
@@ -1409,39 +1886,53 @@ export default function PreviewPanel({
                   "
                 />
 
-                {isSelected(
+                {cropMode &&
+                isSelected(
                   activeV2Clip
-                ) && (
-                  <SelectionOutline
-                    label={
-                      v2FitMode ===
-                      "fill"
-                        ? "V2 · Fill"
-                        : "V2 · Fit"
+                ) ? (
+                  <CropOverlay
+                    crop={
+                      cropDraft
                     }
-
-                    disabled={
-                      !canEdit
-                    }
-
-                    onScaleStart={(
-                      event
-                    ) =>
-                      startScale(
-                        event,
-                        activeV2Clip
-                      )
-                    }
-
-                    onRotateStart={(
-                      event
-                    ) =>
-                      startRotate(
-                        event,
-                        activeV2Clip
-                      )
+                    onStart={
+                      startCropHandle
                     }
                   />
+                ) : (
+                  isSelected(
+                    activeV2Clip
+                  ) && (
+                    <SelectionOutline
+                      label={
+                        v2FitMode ===
+                        "fill"
+                          ? "V2 · Fill"
+                          : "V2 · Fit"
+                      }
+
+                      disabled={
+                        !canEdit
+                      }
+
+                      onScaleStart={(
+                        event
+                      ) =>
+                        startScale(
+                          event,
+                          activeV2Clip
+                        )
+                      }
+
+                      onRotateStart={(
+                        event
+                      ) =>
+                        startRotate(
+                          event,
+                          activeV2Clip
+                        )
+                      }
+                    />
+                  )
                 )}
               </div>
             )}
@@ -1533,90 +2024,91 @@ export default function PreviewPanel({
                     }
                   </div>
 
-                  {isSelected(
-                    textClip
-                  ) && (
-                    <SelectionOutline
-                      label="T1"
+                  {!cropMode &&
+                    isSelected(
+                      textClip
+                    ) && (
+                      <SelectionOutline
+                        label="T1"
 
-                      disabled={
-                        !canEdit
-                      }
+                        disabled={
+                          !canEdit
+                        }
 
-                      onScaleStart={(
-                        event
-                      ) =>
-                        startScale(
-                          event,
-                          textClip
-                        )
-                      }
+                        onScaleStart={(
+                          event
+                        ) =>
+                          startScale(
+                            event,
+                            textClip
+                          )
+                        }
 
-                      onRotateStart={(
-                        event
-                      ) =>
-                        startRotate(
-                          event,
-                          textClip
-                        )
-                      }
-                    />
-                  )}
+                        onRotateStart={(
+                          event
+                        ) =>
+                          startRotate(
+                            event,
+                            textClip
+                          )
+                        }
+                      />
+                    )}
                 </div>
               );
             }
           )}
 
-          {/* =================================
-              SNAP GUIDES
-          ================================= */}
+          {/* SNAP GUIDES */}
 
-          {snapGuides.x && (
-            <div
-              className="
-                absolute
-                top-0
-                bottom-0
-                left-1/2
-                z-[200]
-                w-px
-                bg-fuchsia-400
-                shadow-[0_0_6px_rgba(232,121,249,0.8)]
-                pointer-events-none
-              "
-            />
-          )}
+          {snapGuides.x &&
+            !cropMode && (
+              <div
+                className="
+                  absolute
+                  top-0
+                  bottom-0
+                  left-1/2
+                  z-[200]
+                  w-px
+                  bg-fuchsia-400
+                  pointer-events-none
+                "
+              />
+            )}
 
-          {snapGuides.y && (
-            <div
-              className="
-                absolute
-                left-0
-                right-0
-                top-1/2
-                z-[200]
-                h-px
-                bg-fuchsia-400
-                shadow-[0_0_6px_rgba(232,121,249,0.8)]
-                pointer-events-none
-              "
-            />
-          )}
+          {snapGuides.y &&
+            !cropMode && (
+              <div
+                className="
+                  absolute
+                  left-0
+                  right-0
+                  top-1/2
+                  z-[200]
+                  h-px
+                  bg-fuchsia-400
+                  pointer-events-none
+                "
+              />
+            )}
 
           {/* SAFE AREA */}
 
-          <div
-            className="
-              absolute
-              inset-[8%]
-              border
-              border-dashed
-              border-white/[0.07]
-              rounded
-              pointer-events-none
-              z-[90]
-            "
-          />
+          {!cropMode && (
+            <div
+              className="
+                absolute
+                inset-[8%]
+                border
+                border-dashed
+                border-white/[0.07]
+                rounded
+                pointer-events-none
+                z-[90]
+              "
+            />
+          )}
 
           {/* EMPTY */}
 
@@ -1675,7 +2167,8 @@ export default function PreviewPanel({
             onTogglePlay
           }
           disabled={
-            !projectDuration
+            !projectDuration ||
+            cropMode
           }
           className="
             w-8
@@ -1717,6 +2210,217 @@ export default function PreviewPanel({
         </span>
       </div>
     </section>
+  );
+}
+
+/* =====================================
+   CROP OVERLAY
+===================================== */
+
+function CropOverlay({
+  crop,
+  onStart,
+}: {
+  crop:
+    CropValues;
+
+  onStart: (
+    event:
+      React.MouseEvent,
+
+    side:
+      | "top"
+      | "right"
+      | "bottom"
+      | "left"
+  ) => void;
+}) {
+  return (
+    <div
+      className="
+        absolute
+        inset-0
+        z-[500]
+        pointer-events-none
+      "
+    >
+      {/* CROP RECTANGLE */}
+
+      <div
+        style={{
+          top: `${crop.top}%`,
+
+          right: `${crop.right}%`,
+
+          bottom: `${crop.bottom}%`,
+
+          left: `${crop.left}%`,
+
+          boxShadow:
+            "0 0 0 9999px rgba(0,0,0,0.58)",
+        }}
+        className="
+          absolute
+          border-2
+          border-white
+          pointer-events-none
+        "
+      >
+        {/* RULE OF THIRDS */}
+
+        <div
+          className="
+            absolute
+            left-1/3
+            top-0
+            bottom-0
+            w-px
+            bg-white/30
+          "
+        />
+
+        <div
+          className="
+            absolute
+            left-2/3
+            top-0
+            bottom-0
+            w-px
+            bg-white/30
+          "
+        />
+
+        <div
+          className="
+            absolute
+            top-1/3
+            left-0
+            right-0
+            h-px
+            bg-white/30
+          "
+        />
+
+        <div
+          className="
+            absolute
+            top-2/3
+            left-0
+            right-0
+            h-px
+            bg-white/30
+          "
+        />
+
+        {/* TOP */}
+
+        <button
+          onMouseDown={(
+            event
+          ) =>
+            onStart(
+              event,
+              "top"
+            )
+          }
+          className="
+            absolute
+            pointer-events-auto
+            cursor-ns-resize
+            left-1/2
+            -translate-x-1/2
+            -top-[5px]
+            w-14
+            h-[10px]
+            rounded-full
+            bg-white
+            border
+            border-violet-500
+          "
+        />
+
+        {/* BOTTOM */}
+
+        <button
+          onMouseDown={(
+            event
+          ) =>
+            onStart(
+              event,
+              "bottom"
+            )
+          }
+          className="
+            absolute
+            pointer-events-auto
+            cursor-ns-resize
+            left-1/2
+            -translate-x-1/2
+            -bottom-[5px]
+            w-14
+            h-[10px]
+            rounded-full
+            bg-white
+            border
+            border-violet-500
+          "
+        />
+
+        {/* LEFT */}
+
+        <button
+          onMouseDown={(
+            event
+          ) =>
+            onStart(
+              event,
+              "left"
+            )
+          }
+          className="
+            absolute
+            pointer-events-auto
+            cursor-ew-resize
+            top-1/2
+            -translate-y-1/2
+            -left-[5px]
+            h-14
+            w-[10px]
+            rounded-full
+            bg-white
+            border
+            border-violet-500
+          "
+        />
+
+        {/* RIGHT */}
+
+        <button
+          onMouseDown={(
+            event
+          ) =>
+            onStart(
+              event,
+              "right"
+            )
+          }
+          className="
+            absolute
+            pointer-events-auto
+            cursor-ew-resize
+            top-1/2
+            -translate-y-1/2
+            -right-[5px]
+            h-14
+            w-[10px]
+            rounded-full
+            bg-white
+            border
+            border-violet-500
+          "
+        />
+      </div>
+    </div>
   );
 }
 
@@ -1777,7 +2481,7 @@ function AspectButton({
 }
 
 /* =====================================
-   SELECTION OUTLINE
+   NORMAL SELECTION
 ===================================== */
 
 function SelectionOutline({
@@ -1824,13 +2528,10 @@ function SelectionOutline({
           text-white
           flex
           items-center
-          pointer-events-none
         "
       >
         {label}
       </div>
-
-      {/* ROTATION LINE */}
 
       <div
         className="
@@ -1844,8 +2545,6 @@ function SelectionOutline({
         "
       />
 
-      {/* ROTATION HANDLE */}
-
       <button
         onMouseDown={
           onRotateStart
@@ -1853,7 +2552,6 @@ function SelectionOutline({
         disabled={
           disabled
         }
-        title="Rotate • Hold Shift for 15° snapping"
         className="
           absolute
           left-1/2
@@ -1867,9 +2565,6 @@ function SelectionOutline({
           border-violet-500
           pointer-events-auto
           cursor-grab
-          active:cursor-grabbing
-          disabled:cursor-default
-          disabled:opacity-40
         "
       />
 
@@ -1947,7 +2642,6 @@ function ScaleHandle({
         border-2
         border-violet-500
         pointer-events-auto
-        disabled:cursor-default
         disabled:opacity-40
         ${className}
       `}

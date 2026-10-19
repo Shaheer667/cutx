@@ -13,9 +13,11 @@ import {
 import TopBar from "./TopBar";
 import ToolSidebar from "./ToolSidebar";
 import MediaPanel from "./MediaPanel";
+
 import PreviewPanel, {
   ProjectAspectRatio,
 } from "./PreviewPanel";
+
 import PropertiesPanel from "./PropertiesPanel";
 
 import Timeline from "./timeline/Timeline";
@@ -34,10 +36,6 @@ export default function Editor() {
   const editor =
     useEditor();
 
-  /* =====================================
-     PROJECT CANVAS
-  ===================================== */
-
   const [
     projectAspectRatio,
     setProjectAspectRatio,
@@ -45,6 +43,74 @@ export default function Editor() {
     useState<ProjectAspectRatio>(
       "16:9"
     );
+
+  const [
+    cropMode,
+    setCropMode,
+  ] = useState(false);
+
+  const previousSelectedClipRef =
+    useRef<string | null>(
+      null
+    );
+
+  useEffect(() => {
+    if (
+      previousSelectedClipRef.current !==
+        null &&
+      previousSelectedClipRef.current !==
+        editor.selectedClipId
+    ) {
+      setCropMode(
+        false
+      );
+    }
+
+    previousSelectedClipRef.current =
+      editor.selectedClipId;
+  }, [
+    editor.selectedClipId,
+  ]);
+
+  const startCrop =
+    () => {
+      if (
+        !editor.selectedClip ||
+        editor.selectedClip.kind !==
+          "video" ||
+        editor.tracksLocked
+      ) {
+        return;
+      }
+
+      editor.setCurrentTime(
+        editor.selectedClip.timelineStart
+      );
+
+      setCropMode(
+        true
+      );
+    };
+
+  const resetCrop =
+    () => {
+      if (
+        !editor.selectedClip ||
+        editor.selectedClip.kind !==
+          "video"
+      ) {
+        return;
+      }
+
+      editor.updateSelectedClipTransform(
+        {
+          cropTop: 0,
+          cropRight: 0,
+          cropBottom: 0,
+          cropLeft: 0,
+        }
+      );
+    };
 
   /* =====================================
      TIMELINE HEIGHT
@@ -59,16 +125,14 @@ export default function Editor() {
 
   const resizeRef =
     useRef<{
-      startY: number;
+      startY:
+        number;
 
-      startHeight: number;
+      startHeight:
+        number;
     } | null>(
       null
     );
-
-  /* =====================================
-     WORKSPACE RESIZE
-  ===================================== */
 
   const startWorkspaceResize = (
     event:
@@ -76,13 +140,14 @@ export default function Editor() {
   ) => {
     event.preventDefault();
 
-    resizeRef.current = {
-      startY:
-        event.clientY,
+    resizeRef.current =
+      {
+        startY:
+          event.clientY,
 
-      startHeight:
-        timelineHeight,
-    };
+        startHeight:
+          timelineHeight,
+      };
 
     document.body.style.cursor =
       "row-resize";
@@ -106,7 +171,9 @@ export default function Editor() {
       const resize =
         resizeRef.current;
 
-      if (!resize) {
+      if (
+        !resize
+      ) {
         return;
       }
 
@@ -129,7 +196,7 @@ export default function Editor() {
           viewportLimit
         );
 
-      const nextHeight =
+      setTimelineHeight(
         Math.max(
           MIN_TIMELINE_HEIGHT,
 
@@ -139,21 +206,12 @@ export default function Editor() {
             resize.startHeight +
               delta
           )
-        );
-
-      setTimelineHeight(
-        nextHeight
+        )
       );
     };
 
     const handleMouseUp =
       () => {
-        if (
-          !resizeRef.current
-        ) {
-          return;
-        }
-
         resizeRef.current =
           null;
 
@@ -184,16 +242,8 @@ export default function Editor() {
         "mouseup",
         handleMouseUp
       );
-
-      document.body.style.cursor =
-        "";
-
-      document.body.style.userSelect =
-        "";
     };
-  }, [
-    timelineHeight,
-  ]);
+  }, []);
 
   return (
     <main
@@ -205,8 +255,6 @@ export default function Editor() {
         select-none
       "
     >
-      {/* FILE INPUT */}
-
       <input
         ref={
           editor.fileInputRef
@@ -219,8 +267,6 @@ export default function Editor() {
         }
         className="hidden"
       />
-
-      {/* TOP BAR */}
 
       <TopBar
         canUndo={
@@ -244,10 +290,6 @@ export default function Editor() {
           flex-col
         "
       >
-        {/* =================================
-            MAIN WORKSPACE
-        ================================= */}
-
         <div
           className="
             flex
@@ -255,15 +297,11 @@ export default function Editor() {
             min-h-0
           "
         >
-          {/* TOOLS */}
-
           <ToolSidebar
             onAddText={
               editor.addTextClip
             }
           />
-
-          {/* MEDIA */}
 
           <MediaPanel
             mediaItems={
@@ -282,10 +320,6 @@ export default function Editor() {
               editor.addMediaToTrack
             }
           />
-
-          {/* =================================
-              PREVIEW
-          ================================= */}
 
           <PreviewPanel
             v1VideoRef={
@@ -322,6 +356,10 @@ export default function Editor() {
 
             locked={
               editor.tracksLocked
+            }
+
+            cropMode={
+              cropMode
             }
 
             v1Visible={
@@ -387,11 +425,21 @@ export default function Editor() {
             onCommitTransform={
               editor.commitPreviewTransform
             }
-          />
 
-          {/* =================================
-              PROPERTIES
-          ================================= */}
+            onApplyCrop={(
+              patch
+            ) =>
+              editor.updateSelectedClipTransform(
+                patch
+              )
+            }
+
+            onCloseCrop={() =>
+              setCropMode(
+                false
+              )
+            }
+          />
 
           <PropertiesPanel
             selectedClip={
@@ -402,12 +450,32 @@ export default function Editor() {
               editor.tracksLocked
             }
 
+            cropMode={
+              cropMode
+            }
+
+            onStartCrop={
+              startCrop
+            }
+
+            onResetCrop={
+              resetCrop
+            }
+
             onTransformChange={
               editor.updateSelectedClipTransform
             }
 
             onResetTransform={
               editor.resetSelectedClipTransform
+            }
+
+            onAudioChange={
+              editor.updateSelectedAudio
+            }
+
+            onResetAudio={
+              editor.resetSelectedAudio
             }
 
             onTextChange={
@@ -424,9 +492,7 @@ export default function Editor() {
           />
         </div>
 
-        {/* =================================
-            WORKSPACE DIVIDER
-        ================================= */}
+        {/* WORKSPACE DIVIDER */}
 
         <div
           onMouseDown={
@@ -435,7 +501,6 @@ export default function Editor() {
           onDoubleClick={
             resetWorkspaceResize
           }
-          title="Drag to resize timeline • Double-click to reset"
           className="
             relative
             h-[8px]
@@ -445,49 +510,27 @@ export default function Editor() {
             border-y
             border-[#20252D]
             hover:bg-violet-500/10
-            transition
             z-[80]
-            group
           "
         >
           <div
             className="
               absolute
-              inset-x-0
-              top-1/2
-              -translate-y-1/2
+              inset-0
               flex
               items-center
               justify-center
               pointer-events-none
             "
           >
-            <div
+            <GripHorizontal
+              size={18}
               className="
-                h-[3px]
-                px-3
-                rounded-full
-                bg-[#272D36]
-                group-hover:bg-violet-400/40
-                transition
-                flex
-                items-center
+                text-white/20
               "
-            >
-              <GripHorizontal
-                size={18}
-                className="
-                  text-white/20
-                  group-hover:text-violet-200/80
-                "
-              />
-            </div>
+            />
           </div>
         </div>
-
-        {/* =================================
-            TIMELINE
-        ================================= */}
 
         <Timeline
           height={
