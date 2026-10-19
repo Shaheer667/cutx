@@ -1,4 +1,5 @@
 export type VideoTrack = "V1" | "V2";
+
 export type TimelineTrack =
   | VideoTrack
   | "T1";
@@ -13,12 +14,25 @@ export type MediaItem = {
   waveform: number[];
 };
 
+export type VideoFitMode =
+  | "fit"
+  | "fill";
+
 export type ClipTransform = {
   x: number;
   y: number;
   scale: number;
   rotation: number;
   opacity: number;
+
+  /*
+    Optional so all existing clips
+    remain backwards compatible.
+  */
+  fitMode?: VideoFitMode;
+
+  flipX?: boolean;
+  flipY?: boolean;
 };
 
 export type TextAlign =
@@ -39,14 +53,9 @@ type BaseTimelineClip = {
   name: string;
 
   timelineStart: number;
+
   duration: number;
 
-  /*
-    Visual stacking order.
-
-    V1 normally stays at 0.
-    Overlays/text use 10+.
-  */
   zIndex: number;
 
   transform: ClipTransform;
@@ -57,6 +66,7 @@ export type VideoTimelineClip =
     kind: "video";
 
     mediaId: string;
+
     sourceUrl: string;
 
     track: VideoTrack;

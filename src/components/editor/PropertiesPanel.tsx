@@ -95,6 +95,22 @@ export default function PropertiesPanel({
     selectedClip?.kind ===
     "text";
 
+  const isVideo =
+    selectedClip?.kind ===
+    "video";
+
+  const fitMode =
+    transform?.fitMode ??
+    "fit";
+
+  const flipX =
+    transform?.flipX ??
+    false;
+
+  const flipY =
+    transform?.flipY ??
+    false;
+
   const canReorder =
     !!selectedClip &&
     !(
@@ -196,8 +212,7 @@ export default function PropertiesPanel({
               mt-1
             "
           >
-            Position, scale,
-            rotation and opacity
+            Transform controls
             will appear here
           </p>
         </div>
@@ -278,7 +293,206 @@ export default function PropertiesPanel({
             </button>
           </div>
 
-          {/* LAYER ORDER */}
+          {/* =================================
+              VIDEO FRAME
+          ================================= */}
+
+          {isVideo && (
+            <div
+              className="
+                border-t
+                border-[#222630]
+                pt-4
+                space-y-4
+              "
+            >
+              <div>
+                <p
+                  className="
+                    text-[10px]
+                    text-white/40
+                    mb-2
+                  "
+                >
+                  Frame
+                </p>
+
+                <div
+                  className="
+                    grid
+                    grid-cols-2
+                    gap-2
+                  "
+                >
+                  {/* FIT */}
+
+                  <button
+                    onClick={() =>
+                      onTransformChange(
+                        {
+                          fitMode:
+                            "fit",
+                        }
+                      )
+                    }
+                    disabled={
+                      disabled
+                    }
+                    className={`
+                      h-9
+                      rounded-lg
+                      border
+                      text-[10px]
+                      transition
+                      disabled:opacity-30
+
+                      ${
+                        fitMode ===
+                        "fit"
+                          ? "border-violet-400 bg-violet-500/15 text-violet-200"
+                          : "border-[#282D36] bg-[#0B0E13] text-white/45 hover:text-white"
+                      }
+                    `}
+                  >
+                    Fit
+                  </button>
+
+                  {/* FILL */}
+
+                  <button
+                    onClick={() =>
+                      onTransformChange(
+                        {
+                          fitMode:
+                            "fill",
+                        }
+                      )
+                    }
+                    disabled={
+                      disabled
+                    }
+                    className={`
+                      h-9
+                      rounded-lg
+                      border
+                      text-[10px]
+                      transition
+                      disabled:opacity-30
+
+                      ${
+                        fitMode ===
+                        "fill"
+                          ? "border-violet-400 bg-violet-500/15 text-violet-200"
+                          : "border-[#282D36] bg-[#0B0E13] text-white/45 hover:text-white"
+                      }
+                    `}
+                  >
+                    Fill
+                  </button>
+                </div>
+
+                <p
+                  className="
+                    text-[9px]
+                    text-white/20
+                    mt-2
+                    leading-relaxed
+                  "
+                >
+                  Fit keeps the
+                  full video visible.
+                  Fill covers the
+                  entire project canvas.
+                </p>
+              </div>
+
+              {/* FLIP */}
+
+              <div>
+                <p
+                  className="
+                    text-[10px]
+                    text-white/40
+                    mb-2
+                  "
+                >
+                  Flip
+                </p>
+
+                <div
+                  className="
+                    grid
+                    grid-cols-2
+                    gap-2
+                  "
+                >
+                  <button
+                    onClick={() =>
+                      onTransformChange(
+                        {
+                          flipX:
+                            !flipX,
+                        }
+                      )
+                    }
+                    disabled={
+                      disabled
+                    }
+                    className={`
+                      h-9
+                      rounded-lg
+                      border
+                      text-[10px]
+                      transition
+                      disabled:opacity-30
+
+                      ${
+                        flipX
+                          ? "border-violet-400 bg-violet-500/15 text-violet-200"
+                          : "border-[#282D36] bg-[#0B0E13] text-white/45 hover:text-white"
+                      }
+                    `}
+                  >
+                    Flip H
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      onTransformChange(
+                        {
+                          flipY:
+                            !flipY,
+                        }
+                      )
+                    }
+                    disabled={
+                      disabled
+                    }
+                    className={`
+                      h-9
+                      rounded-lg
+                      border
+                      text-[10px]
+                      transition
+                      disabled:opacity-30
+
+                      ${
+                        flipY
+                          ? "border-violet-400 bg-violet-500/15 text-violet-200"
+                          : "border-[#282D36] bg-[#0B0E13] text-white/45 hover:text-white"
+                      }
+                    `}
+                  >
+                    Flip V
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =================================
+              LAYER ORDER
+          ================================= */}
 
           {canReorder && (
             <div
@@ -392,7 +606,9 @@ export default function PropertiesPanel({
             </div>
           )}
 
-          {/* TEXT CONTROLS */}
+          {/* =================================
+              TEXT
+          ================================= */}
 
           {selectedClip.kind ===
             "text" && (
@@ -754,7 +970,9 @@ export default function PropertiesPanel({
             </div>
           )}
 
-          {/* TRANSFORM */}
+          {/* =================================
+              TRANSFORM
+          ================================= */}
 
           <div
             className="

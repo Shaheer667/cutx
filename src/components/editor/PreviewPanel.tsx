@@ -79,7 +79,8 @@ type Props = {
     ProjectAspectRatio;
 
   onAspectRatioChange: (
-    ratio: ProjectAspectRatio
+    ratio:
+      ProjectAspectRatio
   ) => void;
 
   onTogglePlay:
@@ -95,19 +96,23 @@ type Props = {
     () => void;
 
   onSelectClip: (
-    clip: TimelineClip
+    clip:
+      TimelineClip
   ) => void;
 
   onBeginTransform: (
-    clip: TimelineClip
+    clip:
+      TimelineClip
   ) => void;
 
   onPreviewTransform: (
-    clipId: string,
+    clipId:
+      string,
 
-    patch: Partial<
-      TimelineClip["transform"]
-    >
+    patch:
+      Partial<
+        TimelineClip["transform"]
+      >
   ) => void;
 
   onCommitTransform:
@@ -139,7 +144,7 @@ const aspectRatioValues:
 };
 
 /* =====================================
-   HELPERS
+   GEOMETRY
 ===================================== */
 
 function distanceFromCenter(
@@ -180,6 +185,10 @@ function angleFromCenter(
     Math.PI
   );
 }
+
+/* =====================================
+   FIT
+===================================== */
 
 function getContainedSize(
   containerWidth: number,
@@ -234,19 +243,105 @@ function getContainedSize(
   };
 }
 
-function getTransformStyle(
-  clip: TimelineClip,
+/* =====================================
+   FILL
+===================================== */
 
-  visible = true
-): React.CSSProperties {
+function getCoverSize(
+  containerWidth: number,
+  containerHeight: number,
+  mediaWidth: number,
+  mediaHeight: number
+): Size {
+  if (
+    !containerWidth ||
+    !containerHeight ||
+    !mediaWidth ||
+    !mediaHeight
+  ) {
+    return {
+      width:
+        containerWidth,
+
+      height:
+        containerHeight,
+    };
+  }
+
+  const containerRatio =
+    containerWidth /
+    containerHeight;
+
+  const mediaRatio =
+    mediaWidth /
+    mediaHeight;
+
+  /*
+    Wider media:
+    height matches canvas,
+    width extends outside.
+
+    Taller media:
+    width matches canvas,
+    height extends outside.
+  */
+
+  if (
+    mediaRatio >
+    containerRatio
+  ) {
+    return {
+      height:
+        containerHeight,
+
+      width:
+        containerHeight *
+        mediaRatio,
+    };
+  }
+
+  return {
+    width:
+      containerWidth,
+
+    height:
+      containerWidth /
+      mediaRatio,
+  };
+}
+
+/* =====================================
+   TRANSFORM STYLE
+===================================== */
+
+function getTransformStyle(
+  clip:
+    TimelineClip,
+
+  visible =
+    true
+):
+  React.CSSProperties {
   const {
     x,
     y,
     scale,
     rotation,
     opacity,
+    flipX,
+    flipY,
   } =
     clip.transform;
+
+  const horizontalFlip =
+    flipX
+      ? -1
+      : 1;
+
+  const verticalFlip =
+    flipY
+      ? -1
+      : 1;
 
   return {
     left:
@@ -260,6 +355,8 @@ function getTransformStyle(
       translate(${x}px, ${y}px)
       scale(${scale / 100})
       rotate(${rotation}deg)
+      scaleX(${horizontalFlip})
+      scaleY(${verticalFlip})
     `,
 
     transformOrigin:
@@ -406,7 +503,7 @@ export default function PreviewPanel({
   ]);
 
   /* =====================================
-     VIDEO METADATA
+     METADATA
   ===================================== */
 
   const handleV1Metadata =
@@ -451,21 +548,57 @@ export default function PreviewPanel({
       onV2LoadedMetadata();
     };
 
+  /* =====================================
+     FIT / FILL CALCULATION
+  ===================================== */
+
+  const v1FitMode =
+    activeV1Clip
+      ?.transform
+      .fitMode ??
+    "fit";
+
+  const v2FitMode =
+    activeV2Clip
+      ?.transform
+      .fitMode ??
+    "fit";
+
   const v1DisplaySize =
-    getContainedSize(
-      canvasSize.width,
-      canvasSize.height,
-      v1NaturalSize.width,
-      v1NaturalSize.height
-    );
+    v1FitMode ===
+    "fill"
+      ? getCoverSize(
+          canvasSize.width,
+          canvasSize.height,
+          v1NaturalSize.width,
+          v1NaturalSize.height
+        )
+      : getContainedSize(
+          canvasSize.width,
+          canvasSize.height,
+          v1NaturalSize.width,
+          v1NaturalSize.height
+        );
 
   const v2DisplaySize =
-    getContainedSize(
-      canvasSize.width,
-      canvasSize.height,
-      v2NaturalSize.width,
-      v2NaturalSize.height
-    );
+    v2FitMode ===
+    "fill"
+      ? getCoverSize(
+          canvasSize.width,
+          canvasSize.height,
+          v2NaturalSize.width,
+          v2NaturalSize.height
+        )
+      : getContainedSize(
+          canvasSize.width,
+          canvasSize.height,
+          v2NaturalSize.width,
+          v2NaturalSize.height
+        );
+
+  /* =====================================
+     SELECTED
+  ===================================== */
 
   const isSelected = (
     clip:
@@ -546,8 +679,7 @@ export default function PreviewPanel({
         false;
 
       /*
-        Alt temporarily disables
-        center snapping.
+        Alt disables center snapping.
       */
 
       if (
@@ -560,7 +692,6 @@ export default function PreviewPanel({
           CENTER_SNAP_THRESHOLD
         ) {
           nextX = 0;
-
           snapX = true;
         }
 
@@ -571,7 +702,6 @@ export default function PreviewPanel({
           CENTER_SNAP_THRESHOLD
         ) {
           nextY = 0;
-
           snapY = true;
         }
       }
@@ -692,6 +822,7 @@ export default function PreviewPanel({
         distanceFromCenter(
           centerX,
           centerY,
+
           event.clientX,
           event.clientY
         )
@@ -865,11 +996,6 @@ export default function PreviewPanel({
           startingAngle
         );
 
-      /*
-        Hold Shift to snap
-        rotation by 15 degrees.
-      */
-
       if (
         moveEvent.shiftKey
       ) {
@@ -936,7 +1062,7 @@ export default function PreviewPanel({
       "
     >
       {/* =================================
-          PREVIEW TOP TOOLBAR
+          PREVIEW TOP BAR
       ================================= */}
 
       <div
@@ -952,16 +1078,14 @@ export default function PreviewPanel({
           bg-[#0D1015]
         "
       >
-        <div>
-          <span
-            className="
-              text-[10px]
-              text-white/30
-            "
-          >
-            Canvas
-          </span>
-        </div>
+        <span
+          className="
+            text-[10px]
+            text-white/30
+          "
+        >
+          Canvas
+        </span>
 
         <div
           className="
@@ -1048,7 +1172,7 @@ export default function PreviewPanel({
           </AspectButton>
         </div>
 
-        <div
+        <span
           className="
             min-w-[46px]
             text-right
@@ -1057,7 +1181,7 @@ export default function PreviewPanel({
           "
         >
           {aspectRatio}
-        </div>
+        </span>
       </div>
 
       {/* =================================
@@ -1076,8 +1200,6 @@ export default function PreviewPanel({
           overflow-hidden
         "
       >
-        {/* CANVAS */}
-
         <div
           ref={
             canvasRef
@@ -1182,7 +1304,12 @@ export default function PreviewPanel({
                   activeV1Clip
                 ) && (
                   <SelectionOutline
-                    label="V1"
+                    label={
+                      v1FitMode ===
+                      "fill"
+                        ? "V1 · Fill"
+                        : "V1 · Fit"
+                    }
 
                     disabled={
                       !canEdit
@@ -1286,7 +1413,12 @@ export default function PreviewPanel({
                   activeV2Clip
                 ) && (
                   <SelectionOutline
-                    label="V2"
+                    label={
+                      v2FitMode ===
+                      "fill"
+                        ? "V2 · Fill"
+                        : "V2 · Fit"
+                    }
 
                     disabled={
                       !canEdit
@@ -1315,7 +1447,7 @@ export default function PreviewPanel({
             )}
 
           {/* =================================
-              MULTIPLE TEXT LAYERS
+              TEXT
           ================================= */}
 
           {activeTextClips.map(
@@ -1471,9 +1603,7 @@ export default function PreviewPanel({
             />
           )}
 
-          {/* =================================
-              SAFE AREA
-          ================================= */}
+          {/* SAFE AREA */}
 
           <div
             className="
