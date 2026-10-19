@@ -13,7 +13,9 @@ import {
 import TopBar from "./TopBar";
 import ToolSidebar from "./ToolSidebar";
 import MediaPanel from "./MediaPanel";
-import PreviewPanel from "./PreviewPanel";
+import PreviewPanel, {
+  ProjectAspectRatio,
+} from "./PreviewPanel";
 import PropertiesPanel from "./PropertiesPanel";
 
 import Timeline from "./timeline/Timeline";
@@ -31,6 +33,22 @@ import {
 export default function Editor() {
   const editor =
     useEditor();
+
+  /* =====================================
+     PROJECT CANVAS
+  ===================================== */
+
+  const [
+    projectAspectRatio,
+    setProjectAspectRatio,
+  ] =
+    useState<ProjectAspectRatio>(
+      "16:9"
+    );
+
+  /* =====================================
+     TIMELINE HEIGHT
+  ===================================== */
 
   const [
     timelineHeight,
@@ -328,6 +346,14 @@ export default function Editor() {
 
             projectDuration={
               editor.projectDuration
+            }
+
+            aspectRatio={
+              projectAspectRatio
+            }
+
+            onAspectRatioChange={
+              setProjectAspectRatio
             }
 
             onTogglePlay={

@@ -3,6 +3,9 @@
 import {
   Pause,
   Play,
+  RectangleHorizontal,
+  RectangleVertical,
+  Square,
 } from "lucide-react";
 
 import {
@@ -19,6 +22,12 @@ import {
 import {
   formatTime,
 } from "@/utils/time";
+
+export type ProjectAspectRatio =
+  | "16:9"
+  | "9:16"
+  | "1:1"
+  | "4:5";
 
 type Props = {
   v1VideoRef:
@@ -66,6 +75,13 @@ type Props = {
   projectDuration:
     number;
 
+  aspectRatio:
+    ProjectAspectRatio;
+
+  onAspectRatioChange: (
+    ratio: ProjectAspectRatio
+  ) => void;
+
   onTogglePlay:
     () => void;
 
@@ -79,23 +95,19 @@ type Props = {
     () => void;
 
   onSelectClip: (
-    clip:
-      TimelineClip
+    clip: TimelineClip
   ) => void;
 
   onBeginTransform: (
-    clip:
-      TimelineClip
+    clip: TimelineClip
   ) => void;
 
   onPreviewTransform: (
-    clipId:
-      string,
+    clipId: string,
 
-    patch:
-      Partial<
-        TimelineClip["transform"]
-      >
+    patch: Partial<
+      TimelineClip["transform"]
+    >
   ) => void;
 
   onCommitTransform:
@@ -114,6 +126,17 @@ type SnapGuides = {
 
 const CENTER_SNAP_THRESHOLD =
   8;
+
+const aspectRatioValues:
+  Record<
+    ProjectAspectRatio,
+    number
+  > = {
+  "16:9": 16 / 9,
+  "9:16": 9 / 16,
+  "1:1": 1,
+  "4:5": 4 / 5,
+};
 
 /* =====================================
    HELPERS
@@ -212,13 +235,10 @@ function getContainedSize(
 }
 
 function getTransformStyle(
-  clip:
-    TimelineClip,
+  clip: TimelineClip,
 
-  visible =
-    true
-):
-  React.CSSProperties {
+  visible = true
+): React.CSSProperties {
   const {
     x,
     y,
@@ -281,6 +301,9 @@ export default function PreviewPanel({
 
   currentTime,
   projectDuration,
+
+  aspectRatio,
+  onAspectRatioChange,
 
   onTogglePlay,
 
@@ -378,10 +401,12 @@ export default function PreviewPanel({
 
     return () =>
       observer.disconnect();
-  }, []);
+  }, [
+    aspectRatio,
+  ]);
 
   /* =====================================
-     MEDIA METADATA
+     VIDEO METADATA
   ===================================== */
 
   const handleV1Metadata =
@@ -441,10 +466,6 @@ export default function PreviewPanel({
       v2NaturalSize.width,
       v2NaturalSize.height
     );
-
-  /* =====================================
-     SELECTED
-  ===================================== */
 
   const isSelected = (
     clip:
@@ -525,7 +546,8 @@ export default function PreviewPanel({
         false;
 
       /*
-        Alt disables snapping.
+        Alt temporarily disables
+        center snapping.
       */
 
       if (
@@ -538,6 +560,7 @@ export default function PreviewPanel({
           CENTER_SNAP_THRESHOLD
         ) {
           nextX = 0;
+
           snapX = true;
         }
 
@@ -548,6 +571,7 @@ export default function PreviewPanel({
           CENTER_SNAP_THRESHOLD
         ) {
           nextY = 0;
+
           snapY = true;
         }
       }
@@ -807,6 +831,7 @@ export default function PreviewPanel({
       angleFromCenter(
         centerX,
         centerY,
+
         event.clientX,
         event.clientY
       );
@@ -839,6 +864,11 @@ export default function PreviewPanel({
           currentAngle -
           startingAngle
         );
+
+      /*
+        Hold Shift to snap
+        rotation by 15 degrees.
+      */
 
       if (
         moveEvent.shiftKey
@@ -905,7 +935,134 @@ export default function PreviewPanel({
         bg-[#090B0F]
       "
     >
-      {/* PREVIEW */}
+      {/* =================================
+          PREVIEW TOP TOOLBAR
+      ================================= */}
+
+      <div
+        className="
+          h-11
+          shrink-0
+          border-b
+          border-[#1D222B]
+          flex
+          items-center
+          justify-between
+          px-4
+          bg-[#0D1015]
+        "
+      >
+        <div>
+          <span
+            className="
+              text-[10px]
+              text-white/30
+            "
+          >
+            Canvas
+          </span>
+        </div>
+
+        <div
+          className="
+            flex
+            items-center
+            gap-1
+            p-1
+            rounded-lg
+            bg-[#090B0F]
+            border
+            border-[#242933]
+          "
+        >
+          <AspectButton
+            active={
+              aspectRatio ===
+              "16:9"
+            }
+            label="16:9"
+            title="Landscape 16:9"
+            onClick={() =>
+              onAspectRatioChange(
+                "16:9"
+              )
+            }
+          >
+            <RectangleHorizontal
+              size={13}
+            />
+          </AspectButton>
+
+          <AspectButton
+            active={
+              aspectRatio ===
+              "9:16"
+            }
+            label="9:16"
+            title="Vertical 9:16"
+            onClick={() =>
+              onAspectRatioChange(
+                "9:16"
+              )
+            }
+          >
+            <RectangleVertical
+              size={13}
+            />
+          </AspectButton>
+
+          <AspectButton
+            active={
+              aspectRatio ===
+              "1:1"
+            }
+            label="1:1"
+            title="Square 1:1"
+            onClick={() =>
+              onAspectRatioChange(
+                "1:1"
+              )
+            }
+          >
+            <Square
+              size={12}
+            />
+          </AspectButton>
+
+          <AspectButton
+            active={
+              aspectRatio ===
+              "4:5"
+            }
+            label="4:5"
+            title="Portrait 4:5"
+            onClick={() =>
+              onAspectRatioChange(
+                "4:5"
+              )
+            }
+          >
+            <RectangleVertical
+              size={12}
+            />
+          </AspectButton>
+        </div>
+
+        <div
+          className="
+            min-w-[46px]
+            text-right
+            text-[10px]
+            text-white/30
+          "
+        >
+          {aspectRatio}
+        </div>
+      </div>
+
+      {/* =================================
+          PREVIEW AREA
+      ================================= */}
 
       <div
         className="
@@ -914,27 +1071,36 @@ export default function PreviewPanel({
           flex
           items-center
           justify-center
-          px-4
-          py-3
+          px-5
+          py-4
           overflow-hidden
         "
       >
+        {/* CANVAS */}
+
         <div
           ref={
             canvasRef
           }
+          style={{
+            aspectRatio:
+              aspectRatioValues[
+                aspectRatio
+              ],
+          }}
           className="
             relative
-            aspect-video
-            w-[min(96%,1100px)]
+            h-[92%]
+            w-auto
+            max-w-[96%]
             max-h-[96%]
             bg-black
             rounded-xl
             overflow-hidden
             border
-            border-[#242933]
+            border-[#292E38]
             shadow-2xl
-            shadow-black/40
+            shadow-black/50
           "
         >
           {/* =================================
@@ -1017,9 +1183,11 @@ export default function PreviewPanel({
                 ) && (
                   <SelectionOutline
                     label="V1"
+
                     disabled={
                       !canEdit
                     }
+
                     onScaleStart={(
                       event
                     ) =>
@@ -1028,6 +1196,7 @@ export default function PreviewPanel({
                         activeV1Clip
                       )
                     }
+
                     onRotateStart={(
                       event
                     ) =>
@@ -1118,9 +1287,11 @@ export default function PreviewPanel({
                 ) && (
                   <SelectionOutline
                     label="V2"
+
                     disabled={
                       !canEdit
                     }
+
                     onScaleStart={(
                       event
                     ) =>
@@ -1129,6 +1300,7 @@ export default function PreviewPanel({
                         activeV2Clip
                       )
                     }
+
                     onRotateStart={(
                       event
                     ) =>
@@ -1234,9 +1406,11 @@ export default function PreviewPanel({
                   ) && (
                     <SelectionOutline
                       label="T1"
+
                       disabled={
                         !canEdit
                       }
+
                       onScaleStart={(
                         event
                       ) =>
@@ -1245,6 +1419,7 @@ export default function PreviewPanel({
                           textClip
                         )
                       }
+
                       onRotateStart={(
                         event
                       ) =>
@@ -1260,7 +1435,9 @@ export default function PreviewPanel({
             }
           )}
 
-          {/* CENTER X SNAP */}
+          {/* =================================
+              SNAP GUIDES
+          ================================= */}
 
           {snapGuides.x && (
             <div
@@ -1278,8 +1455,6 @@ export default function PreviewPanel({
             />
           )}
 
-          {/* CENTER Y SNAP */}
-
           {snapGuides.y && (
             <div
               className="
@@ -1296,7 +1471,9 @@ export default function PreviewPanel({
             />
           )}
 
-          {/* SAFE AREA */}
+          {/* =================================
+              SAFE AREA
+          ================================= */}
 
           <div
             className="
@@ -1304,7 +1481,7 @@ export default function PreviewPanel({
               inset-[8%]
               border
               border-dashed
-              border-white/[0.06]
+              border-white/[0.07]
               rounded
               pointer-events-none
               z-[90]
@@ -1335,7 +1512,9 @@ export default function PreviewPanel({
         </div>
       </div>
 
-      {/* PLAYBACK */}
+      {/* =================================
+          PLAYBACK
+      ================================= */}
 
       <div
         className="
@@ -1412,6 +1591,62 @@ export default function PreviewPanel({
 }
 
 /* =====================================
+   ASPECT BUTTON
+===================================== */
+
+function AspectButton({
+  active,
+  label,
+  title,
+  onClick,
+  children,
+}: {
+  active: boolean;
+
+  label: string;
+
+  title: string;
+
+  onClick:
+    () => void;
+
+  children:
+    React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={
+        title
+      }
+      onClick={
+        onClick
+      }
+      className={`
+        h-7
+        px-2
+        rounded-md
+        flex
+        items-center
+        gap-1.5
+        text-[9px]
+        transition
+
+        ${
+          active
+            ? "bg-violet-500/20 text-violet-200 border border-violet-500/30"
+            : "text-white/35 border border-transparent hover:text-white hover:bg-white/5"
+        }
+      `}
+    >
+      {children}
+
+      {label}
+    </button>
+  );
+}
+
+/* =====================================
    SELECTION OUTLINE
 ===================================== */
 
@@ -1445,8 +1680,6 @@ function SelectionOutline({
         pointer-events-none
       "
     >
-      {/* LABEL */}
-
       <div
         className="
           absolute
@@ -1511,11 +1744,7 @@ function SelectionOutline({
       />
 
       <ScaleHandle
-        className="
-          -left-[6px]
-          -top-[6px]
-          cursor-nwse-resize
-        "
+        className="-left-[6px] -top-[6px] cursor-nwse-resize"
         disabled={
           disabled
         }
@@ -1525,11 +1754,7 @@ function SelectionOutline({
       />
 
       <ScaleHandle
-        className="
-          -right-[6px]
-          -top-[6px]
-          cursor-nesw-resize
-        "
+        className="-right-[6px] -top-[6px] cursor-nesw-resize"
         disabled={
           disabled
         }
@@ -1539,11 +1764,7 @@ function SelectionOutline({
       />
 
       <ScaleHandle
-        className="
-          -left-[6px]
-          -bottom-[6px]
-          cursor-nesw-resize
-        "
+        className="-left-[6px] -bottom-[6px] cursor-nesw-resize"
         disabled={
           disabled
         }
@@ -1553,11 +1774,7 @@ function SelectionOutline({
       />
 
       <ScaleHandle
-        className="
-          -right-[6px]
-          -bottom-[6px]
-          cursor-nwse-resize
-        "
+        className="-right-[6px] -bottom-[6px] cursor-nwse-resize"
         disabled={
           disabled
         }
@@ -1602,7 +1819,6 @@ function ScaleHandle({
         pointer-events-auto
         disabled:cursor-default
         disabled:opacity-40
-
         ${className}
       `}
     />
